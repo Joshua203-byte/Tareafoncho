@@ -22,6 +22,47 @@ Métricas que reportamos en cada entrada: **EM y F1 globales**, **HasAns F1** (c
 
 ---
 
+## Corrida 5: full_data_r16_ep2
+
+**Pregunta.** Con dos épocas, ¿r = 16 mejora sobre r = 8 (`full_data_r8_ep2`) a los mismos pasos (8 236)?
+
+**Configuración.** LoRA r = 16, α = 32. Igual que `full_data_r8_ep2` salvo el rango. Dos épocas, 8 236 pasos. Pérdida promedio de la corrida: ver `config.json`.
+
+**Resultado en `dev_select`** (`logs/runs/full_data_r16_ep2/`). En la monitorización de entrenamiento (τ = 0):
+
+| Época | EM | F1 | HasAns F1 | NoAns acc |
+|---|---|---|---|---|
+| 1 | 58.05 | 61.18 | 61.19 | 61.16 |
+| 2 | 60.54 | 63.25 | 60.51 | 65.81 |
+
+**Barrido de τ** (`logs/runs/full_data_r16_ep2/tau_sweep_epoch_2.json`), sobre la época 2:
+
+| τ | EM | F1 | HasAns F1 | NoAns acc | % null |
+|---|---|---|---|---|---|
+| −∞ | 34.17 | 38.65 | 80.01 | 0.0 | 0.0 |
+| −4 | 45.06 | 49.32 | 78.36 | 22.20 | 13.15 |
+| −2 | 53.79 | 57.44 | 73.16 | 42.76 | 28.19 |
+| −1 | 58.05 | 61.31 | 68.18 | 54.89 | 37.84 |
+| −0.5 | 59.22 | 62.23 | 64.45 | 60.15 | 42.98 |
+| 0 | 60.42 | 63.18 | 60.58 | 65.61 | 48.27 |
+| +0.5 | 61.37 | 63.74 | 55.90 | 71.07 | 54.15 |
+| +1 | 62.14 | 64.11 | 51.18 | 76.20 | 59.79 |
+| +2 | 61.35 | 62.63 | 39.74 | 84.01 | 70.44 |
+| +4 | 57.09 | 57.49 | 17.77 | 94.61 | 88.03 |
+| +∞ | 51.73 | 51.73 | 0.07 | 100.0 | 100.0 |
+
+**Aproximación reponderada a 25 % sin respuesta.** Mejor τ = −2 con puntaje ≈ 65.6 (τ = −1: ≈ 64.9; τ = 0: ≈ 61.8).
+
+**Comparación con `full_data_r8_ep2` (mismos pasos, τ = 0):** EM +3.8 (56.67 → 60.42), HasAns F1 ≈ igual (60.83 → 60.58), NoAns acc +6.5 (59.07 → 65.61). Puntaje reponderado con τ = −2: 62.9 → 65.6.
+
+**Lectura.**
+- r = 16 mejora frente a r = 8 con el mismo número de pasos. La ganancia es de unos 2.6 puntos en el puntaje reponderado.
+- Casi toda la ganancia viene de NoAns, no de la extracción. Con τ = −∞ (siempre span), HasAns F1 es 80.0 contra 79.6 de r = 8: la capacidad de extraer apenas cambió. Lo que mejora es la decisión de cuándo responder null.
+- La mejora en EM con τ = 0 (+3.8) viene del mismo efecto: el umbral de r = 16 queda mejor ubicado, y por eso su mejor τ aproximado (−2) está a la misma altura que en r = 8.
+- Un punto a vigilar: el puntaje reponderado depende de la proporción de null (25 %). Es una aproximación; la decisión final de τ es de la Fase 4.
+
+**Pregunta que abre la siguiente corrida.** ¿Subir a r = 32 con dos épocas mejora más el puntaje reponderado que r = 16? Si la ganancia es menor a unos 2 puntos, el plan indica pasar a fine-tuning completo como control.
+
 ## Corrida 4: full_data_r16
 
 **Pregunta.** Con el mismo número de pasos que `full_data_r8` (1 época, 4 118 pasos), ¿subir el rango de 8 a 16 mejora HasAns F1 y EM?
