@@ -61,13 +61,20 @@ Un **decoder** (estilo GPT) genera texto token a token. La guía lo prohíbe par
 
 Hay tres aspectos que pesan en la decisión: tamaño (latencia en laptop), calidad y disponibilidad del checkpoint base.
 
-| Modelo | Hugging Face id | Parámetros aprox. | Capas | Paper original | ¿Sirve para la guía? |
-|---|---|---|---|---|---|
-| DistilBERT | `distilbert-base-uncased` | ~66 M | 6 | [Sanh et al., 2019](https://arxiv.org/abs/1910.01108) | Sí. Es la referencia de la rúbrica (0.70). |
-| BERT-base | `bert-base-uncased` | ~110 M | 12 | [Devlin et al., 2019](https://arxiv.org/abs/1810.04805) | Sí. Más calidad, ~2× más lento en CPU. |
-| RoBERTa-base | `roberta-base` | ~125 M | 12 | [Liu et al., 2019](https://arxiv.org/abs/1907.11692) | Sí. Mejor calidad que BERT, más pesado. |
-| DeBERTa-v3-base | `microsoft/deberta-v3-base` | ~184 M | 12 | [He et al., 2021](https://arxiv.org/abs/2111.09543) (ver también [DeBERTa, 2020](https://arxiv.org/abs/2006.03654)) | Sí, pero el más lento en CPU y con tokenizer más complejo. |
-| ModernBERT-base | `answerdotai/ModernBERT-base` | ~150 M | 22 | [Warner et al., 2024](https://arxiv.org/abs/2412.13663) | Sí, pero es el más reciente; requiere versiones recientes de `transformers`. |
+Medidos con `scripts/benchmark_models.py` (con el modelo QA completo, cabeza start/end incluida; latencia en CPU, batch 1, 384 tokens, mediana de 10 corridas; los datos completos están en `logs/model_benchmark.json`):
+
+| Modelo | Hugging Face id | Arquitectura | Capas / hidden | Parámetros | Latencia CPU | Paper original |
+|---|---|---|---|---|---|---|
+| DistilBERT | `distilbert-base-uncased` | Encoder destilado de BERT | 6 / 768 | **66.4 M** | **110 ms** | [Sanh et al., 2019](https://arxiv.org/abs/1910.01108) |
+| BERT-base | `bert-base-uncased` | Encoder | 12 / 768 | 108.9 M | 235 ms | [Devlin et al., 2019](https://arxiv.org/abs/1810.04805) |
+| RoBERTa-base | `roberta-base` | Encoder (mismo esquema que BERT) | 12 / 768 | 124.1 M | 229 ms | [Liu et al., 2019](https://arxiv.org/abs/1907.11692) |
+| DeBERTa-v3-base | `microsoft/deberta-v3-base` | Encoder con atención desentrelazada | 12 / 768 | 183.8 M | 387 ms | [He et al., 2021](https://arxiv.org/abs/2111.09543) (y [DeBERTa, 2020](https://arxiv.org/abs/2006.03654)) |
+| ModernBERT-base | `answerdotai/ModernBERT-base` | Encoder moderno (RoPE, atención local/global) | 22 / 768 | 149.6 M | 317 ms | [Warner et al., 2024](https://arxiv.org/abs/2412.13663) |
+
+Notas sobre la tabla:
+
+- El conteo de DistilBERT (66.4 M) coincide con el ejemplo de `/info` de la guía (66 362 880).
+- Las latencias son de forward puro en el laptop de desarrollo, sin tokenización ni red. En el servicio real se suma el tiempo de tokenizar y el túnel. Aun así, **los cinco caben holgadamente en el límite de 5 s**: la latencia no es lo que separa a los candidatos.
 
 Los cinco son checkpoints *base* sin fine-tuning en SQuAD. Verificamos en el Hub que ninguno tenga la etiqueta `squad`. El checkpoint `distilbert/distilbert-base-cased-distilled-squad` **sí** está entrenado en SQuAD y queda prohibido por la regla 1.
 
