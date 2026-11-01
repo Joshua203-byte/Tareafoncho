@@ -1,0 +1,16 @@
+{
+  "model": "distilbert-base-uncased",
+  "max_length": 384,
+  "stride": 128,
+  "examples": 130319,
+  "windows": 131754,
+  "windows_per_example": 1.011,
+  "examples_with_more_than_one_window": 1373,
+  "map_seconds": 17.3,
+  "mapped_rows": 131754,
+  "answerable": 86821,
+  "answerable_without_full_window": 0,
+  "answers_end_mid_token": 146,
+  "answers_start_mid_token": 76,
+  "real_tokens_fraction_of_fixed_padding": 0.4438
+}
