@@ -1,0 +1,33 @@
+# Entorno virtual
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secretos: el token nunca se versiona
+.env
+.env.*
+!.env.example
+
+# Pesos del modelo y checkpoints: pesados y no van a git (se comparten por release o carpeta)
+models/
+checkpoints/
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Datos de entrenamiento descargados (se regeneran con el script de descarga)
+data/cache/
+datasets/
+
+# Salidas locales
+.ipynb_checkpoints/
+*.log.tmp
+
+# Sistema
+.DS_Store
+Thumbs.db
