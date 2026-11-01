@@ -20,6 +20,9 @@ checkpoints/
 *.pt
 *.pth
 
+# Material del curso en PDF: solo local, no se versiona
+*.pdf
+
 # Datos de entrenamiento descargados (se regeneran con el script de descarga)
 data/cache/
 datasets/
