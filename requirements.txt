@@ -1,0 +1,18 @@
+# Índice extra de PyTorch con CUDA 12.8 (Windows no trae CUDA en el índice por defecto).
+# Quítalo si instalas en Linux/macOS o solo vas a usar CPU.
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+# Entrenamiento
+torch==2.11.0+cu128
+transformers==5.22.1
+datasets==5.1.0
+accelerate==1.15.0
+numpy==2.5.4
+
+# Servicio
+fastapi==0.162.0
+uvicorn==0.54.0
+
+# Pruebas
+pytest==9.2.0
+httpx==0.28.1
