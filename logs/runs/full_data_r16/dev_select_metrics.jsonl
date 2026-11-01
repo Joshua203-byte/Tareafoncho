@@ -1,0 +1,1 @@
+{"epoch": 1, "global_step": 4118, "tau": 0.0, "n": 5917, "EM": 56.08, "F1": 58.65, "HasAns_n": 2858, "HasAns_EM": 49.93, "HasAns_F1": 55.26, "NoAns_n": 3059, "NoAns_acc": 61.82}

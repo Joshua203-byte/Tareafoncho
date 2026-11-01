@@ -1,6 +1,6 @@
 # Registro de experimentos: Fase 3
 
-Cada corrida deja una entrada aquí, en orden cronológico. La entrada registra qué
+Cada corrida deja una entrada aquí, de la más reciente a la más antigua. La entrada registra qué
 se quería responder, qué pasó, qué se concluye y qué pregunta abre la siguiente
 corrida. Así el historial de decisiones queda legible para cualquiera del equipo,
 incluido el día del Q&A.
@@ -21,6 +21,79 @@ Cada salto de rango se justifica con la entrada anterior. No saltamos de r = 8 a
 Métricas que reportamos en cada entrada: **EM y F1 globales**, **HasAns F1** (calidad del modelo cuando hay respuesta) y **NoAns accuracy** (depende de τ).
 
 ---
+
+## Corrida 4: full_data_r16
+
+**Pregunta.** Con el mismo número de pasos que `full_data_r8` (1 época, 4 118 pasos), ¿subir el rango de 8 a 16 mejora HasAns F1 y EM?
+
+**Configuración.** LoRA r = 16, α = 32. Igual que `full_data_r8` salvo el rango. Una época, 4 118 pasos. Tiempo: 1 218 s (≈ 20 min). Pérdida promedio de la corrida: 1.97.
+
+**Resultado en `dev_select`** (`logs/runs/full_data_r16/`):
+
+| Época | τ | EM | F1 | HasAns F1 | NoAns acc |
+|---|---|---|---|---|---|
+| 1 | 0 | 56.08 | 58.65 | 55.26 | 61.82 |
+
+**Barrido de τ** (`logs/runs/full_data_r16/tau_sweep_epoch_1.json`):
+
+| τ | EM | F1 | HasAns F1 | NoAns acc | % null |
+|---|---|---|---|---|---|
+| −∞ | 32.36 | 37.20 | 77.02 | 0.0 | 0.0 |
+| −4 | 37.94 | 42.59 | 75.96 | 11.41 | 6.90 |
+| −2 | 46.39 | 50.41 | 70.75 | 31.42 | 21.92 |
+| −1 | 52.12 | 55.50 | 64.72 | 46.88 | 34.68 |
+| −0.5 | 54.05 | 57.02 | 60.04 | 54.20 | 41.79 |
+| 0 | 56.04 | 58.65 | 55.40 | 61.69 | 48.84 |
+| +0.5 | 57.19 | 59.22 | 49.30 | 68.49 | 56.26 |
+| +1 | 58.17 | 59.69 | 42.16 | 76.07 | 64.63 |
+| +2 | 57.78 | 58.48 | 27.40 | 87.51 | 79.03 |
+| +∞ | 51.73 | 51.73 | 0.07 | 100.0 | 100.0 |
+
+**Aproximación reponderada a 25 % sin respuesta.** Mejor τ = −2 con puntaje ≈ 60.9 (τ = 0: ≈ 57.0).
+
+**Comparación con `full_data_r8` a los mismos pasos (τ = 0):** EM +3.1 (52.97 → 56.04), HasAns F1 +2.4 (53.05 → 55.40 en el barrido), NoAns acc +4.1. Puntaje reponderado: 58.6 → 60.9.
+
+**Lectura.** Subir el rango con los mismos pasos sí ayuda, aunque poco. Eso responde la pregunta: r = 16 mejora frente a r = 8 a igual número de pasos.
+
+## Corrida 3: full_data_r8_ep2
+
+**Pregunta.** ¿Más épocas mejoran HasAns F1 y EM con r = 8? ¿Cuánto más?
+
+**Configuración.** LoRA r = 8, α = 16. Igual que `full_data_r8` salvo el número de épocas. Dos épocas, 8 236 pasos. El scheduler lineal decae hasta cero al final de la época 2, así que la época 1 de esta corrida no es equivalente a la corrida de una época. Tiempo: 2 381 s (≈ 40 min). Pérdida promedio de la corrida: 1.81.
+
+**Resultado en `dev_select`** (`logs/runs/full_data_r8_ep2/`). En la monitorización de entrenamiento (τ = 0):
+
+| Época | EM | F1 | HasAns F1 | NoAns acc |
+|---|---|---|---|---|
+| 1 | 53.63 | 56.96 | 61.91 | 52.34 |
+| 2 | 56.72 | 59.96 | 60.71 | 59.27 |
+
+**Barrido de τ** (`logs/runs/full_data_r8_ep2/tau_sweep_epoch_2.json`), sobre la época 2:
+
+| τ | EM | F1 | HasAns F1 | NoAns acc | % null |
+|---|---|---|---|---|---|
+| −∞ | 33.41 | 38.43 | 79.57 | 0.0 | 0.0 |
+| −4 | 40.88 | 45.67 | 77.58 | 15.85 | 9.92 |
+| −2 | 48.17 | 52.47 | 72.74 | 33.54 | 22.68 |
+| −1 | 52.75 | 56.47 | 67.81 | 45.86 | 32.70 |
+| −0.5 | 54.91 | 58.46 | 65.02 | 52.34 | 38.08 |
+| 0 | 56.67 | 59.92 | 60.83 | 59.07 | 44.31 |
+| +0.5 | 58.14 | 60.85 | 56.11 | 65.28 | 50.85 |
+| +1 | 59.73 | 62.02 | 51.59 | 71.76 | 57.19 |
+| +2 | 60.62 | 62.05 | 39.38 | 83.23 | 70.29 |
+| +4 | 56.08 | 56.38 | 13.90 | 96.08 | 90.79 |
+| +∞ | 51.73 | 51.73 | 0.07 | 100.0 | 100.0 |
+
+**Aproximación reponderada a 25 % sin respuesta.** Mejor τ = −2 con puntaje ≈ 62.9 (τ = 0: ≈ 60.4).
+
+**Comparación con `full_data_r8` (1 época, τ = 0):** EM +3.7 (52.97 → 56.67), HasAns F1 +7.8 (53.05 → 60.83), puntaje reponderado 58.6 → 62.9.
+
+**Lectura.**
+- Más épocas mejoran EM y HasAns F1. La mejora en HasAns F1 es la más grande de los experimentos hasta ahora.
+- HasAns F1 no sube de forma monótona: en la época 1 (con learning rate todavía alto) vale 61.9 con τ = 0, y en la época 2 baja a 60.7. NoAns sí sube. La medida que decide es el puntaje reponderado, que sigue subiendo entre épocas (≈ 59.5 → 60.4 con τ = 0).
+- Los valores del barrido y los de la monitorización difieren en ≈ 0.05 EM (56.67 vs 56.72). No lo investigué; es una diferencia pequeña.
+
+**Pregunta que abre la siguiente corrida.** Con más pasos ya obtenemos la mejor combinación (r = 8, 2 épocas). ¿Ese beneficio sigue creciendo con r = 16 a 2 épocas, o ya estamos cerca de lo que LoRA puede dar con este presupuesto?
 
 ## Corrida 2: full_data_r8
 
