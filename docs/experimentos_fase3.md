@@ -22,6 +22,29 @@ Métricas que reportamos en cada entrada: **EM y F1 globales**, **HasAns F1** (c
 
 ---
 
+## Evaluación con la escala de la guía (proxy, dev_select)
+
+**Pregunta.** ¿Dónde queda cada checkpoint frente al ancla de 0.70 de la nota en vivo (guía, sección XIV.1)? La nota no es F1: cada pregunta vale 1 (exacta o `null` correcto), 0.5 (solapamiento parcial juzgado válido) o 0.
+
+**Método.** `scripts/item_score.py`. El juez LLM de la guía no está disponible, así que el crédito parcial usa una regla: cualquier predicción con F1 > 0 que no sea exacta cuenta como 0.5. Es un proxy generoso. Por eso también se reporta el puntaje solo con exactas (0.5 → 0), y la nota real debería quedar entre ambas cotas. Reponderado a 25 % sin respuesta. Control: siempre `null` da 0.25 en ambas corridas.
+
+**Resultados** (mejor τ de cada corrida, todos con τ = −2 en la fila de mayor puntaje con crédito parcial):
+
+| Corrida | Con crédito parcial (proxy) | Solo exactas | Nota equivalente (proxy → exactas) |
+|---|---|---|---|
+| `full_data_r8_ep2` | 0.623 | 0.565 (τ = −1) | ≈ 43 → ≈ 35 |
+| `full_data_r16_ep2` | 0.649 | 0.599 (τ = −2) | ≈ 53 → ≈ 47 |
+
+Nota equivalente = `(puntaje − 0.25) / (0.70 − 0.25) × 60`, con el ancla provisional de la guía.
+
+**Lectura.**
+- Ninguna de las dos llega a 0.70 con ninguna de las dos reglas. La mejor, r = 16 con 2 épocas, queda a 0.05 en el proxy generoso y a 0.10 en el de solo exactas.
+- r = 16 supera a r = 8 en las dos reglas (+2.6 y +3.4 puntos de puntaje).
+- El resultado real depende de cuántas respuestas parciales juzgue válidas el juez. Con las dos cotas, el rango esperado es ≈ 47–53 puntos, según mis estimaciones.
+- Estas cifras son de `dev_select`, no del conjunto oculto. Sirven para comparar corridas entre sí, no como nota.
+
+**Pregunta que abre la siguiente corrida.** Para acercarse a 0.70 hace falta un salto de unos 5 puntos de puntaje. ¿Más épocas con r = 16 lo dan, o hace falta fine-tuning completo?
+
 ## Corrida 5: full_data_r16_ep2
 
 **Pregunta.** Con dos épocas, ¿r = 16 mejora sobre r = 8 (`full_data_r8_ep2`) a los mismos pasos (8 236)?
