@@ -22,6 +22,34 @@ Métricas que reportamos en cada entrada: **EM y F1 globales**, **HasAns F1** (c
 
 ---
 
+## Corrida 6: r16_es (LoRA r = 16, parada temprana)
+
+**Pregunta.** Con un tope de 8 épocas y paciencia de 2 sobre `dev_select`, ¿la curva sigue subiendo más allá de 2 épocas? ¿Dónde para?
+
+**Configuración.** LoRA r = 16, α = 32, lr 2e-4, calendario lineal sobre 8 épocas (32 944 pasos). Parada temprana con `guide_reweighted` a τ = 0. Tiempo: 6 529 s (≈ 1 h 50 min) hasta la época 5.
+
+**Lo que decidió la parada temprana.** Paró en la época 5 y eligió la época 3 (τ = 0, puntaje 0.667). Pero el puntaje con τ = 0 oscila mucho entre épocas (HasAns F1: 62, 53, 70, 57, 65), porque el umbral se mueve. No es una señal confiable para elegir época.
+
+**Re-evaluación sobre los adaptadores guardados** (`scripts/item_score.py`, mejor τ por época, `dev_select`, reponderado a 25 % sin respuesta):
+
+| Época | Mejor τ | Puntaje (proxy) | Con τ = −2 | Solo exactas (mejor τ) |
+|---|---|---|---|---|
+| 1 | −1 | 0.626 | 0.624 | 0.572 |
+| 2 | −4 | 0.667 | 0.666 | 0.620 |
+| 3 | −2 | 0.680 | 0.680 | 0.629 |
+| 4 | −4 | 0.694 | 0.683 | 0.644 |
+| **5** | **−2** | **0.697** | **0.697** | **0.650** |
+
+**Lectura.**
+- La curva sube hasta la época 5 y no se ha aplanado. La parada temprana no llegó a cortar: el tope de 8 épocas no se alcanzó porque la paciencia se gastó en el ruido de τ = 0.
+- Con el mejor τ por época, la mejor es la 5, con τ = −2. Con τ = −2 la época 5 queda igual al máximo, así que τ = −2 es estable en las épocas finales.
+- Frente a `r16_ep2` (0.649 con τ = −2): +4.8 puntos del proxy. El puntaje con solo exactas sube de 0.599 a 0.650. El ancla de la guía es 0.70, así que quedamos cerca, pero el proxy es generoso y es una estimación sobre `dev_select`.
+- Sesgo de selección: la época y τ se eligieron mirando `dev_select`, así que este número está un poco inflado. `dev_report` es el único que da una cifra limpia.
+
+**Modelo fusionado.** `models/r16_es/merged` tiene la época 3, que fue elegida con τ = 0 y es peor. Para la API se usa `models/r16_es/merged_epoch5` (época 5, τ = −2). Ambos están en `models/`, que no se versiona.
+
+**Pregunta que abre el siguiente paso.** ¿Evaluamos `merged_epoch5` con τ = −2 sobre `dev_report`, una sola vez? Después de eso ya no se vuelve a elegir nada.
+
 ## Evaluación con la escala de la guía (proxy, dev_select)
 
 **Pregunta.** ¿Dónde queda cada checkpoint frente al ancla de 0.70 de la nota en vivo (guía, sección XIV.1)? La nota no es F1: cada pregunta vale 1 (exacta o `null` correcto), 0.5 (solapamiento parcial juzgado válido) o 0.

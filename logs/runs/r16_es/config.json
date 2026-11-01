@@ -1,0 +1,42 @@
+{
+  "run_name": "r16_es",
+  "args": {
+    "run_name": "r16_es",
+    "model_id": "distilbert-base-uncased",
+    "lora_rank": 16,
+    "lora_alpha": null,
+    "lr": 0.0002,
+    "epochs": 8,
+    "batch_size": 32,
+    "warmup_ratio": 0.06,
+    "pilot_size": 0,
+    "tau": 0.0,
+    "max_length": 384,
+    "stride": 128,
+    "seed": 42,
+    "patience": 2
+  },
+  "parameters": {
+    "total": 66955780,
+    "trainable": 591362,
+    "trainable_pct": 0.883
+  },
+  "train_examples": 130319,
+  "train_windows": 131754,
+  "dev_select_questions": 5917,
+  "dev_select_windows": 6124,
+  "selection": {
+    "metric": "guide_reweighted",
+    "tau": 0.0,
+    "patience": 2,
+    "best_epoch": 3,
+    "best_value": 0.6668,
+    "last_epoch": 5,
+    "stopped_early": true
+  },
+  "train_loss": 1.4634770443857499,
+  "train_runtime_seconds": 6529.0,
+  "total_seconds": 6537.1,
+  "git_commit": "9fb7163a1af1c7e6f4e13fbd739847b2c7493001",
+  "finished_at": "2026-11-01T22:47:58.795701+00:00"
+}
