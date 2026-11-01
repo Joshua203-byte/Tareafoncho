@@ -2,23 +2,28 @@
 
 Este documento explica las decisiones de preprocesamiento de `src/features.py` y las respalda con mediciones de `scripts/measure_preprocessing.py` (`logs/preprocessing_stats.json`).
 
-## 1. Estructura
+## 1. Estructura y diseño
 
 Entrenamiento y validación comparten la tokenización. Solo cambia lo que se hace con cada ventana:
 
 ```
 BaseQAFeatures          tokenize(): pregunta + contexto -> ventanas (sin padding)
+│                       __call__(): llama a tokenize() y luego a build()
 ├── TrainFeatures       build(): añade start_positions / end_positions
 └── ValidationFeatures  build(): añade example_id y offset_mapping (None fuera del contexto)
 ```
 
-Así la lógica de tokenización no puede divergir entre los dos flujos. Esto es un patrón de *template method*: la base define el esqueleto y las subclases solo implementan el paso que cambia.
+**Por qué esta forma.** Es un patrón de *template method*: la base define el esqueleto del proceso y cada subclase implementa el paso que cambia.
+
+- **Un solo lugar para la tokenización.** Si entrenamiento y validación tokenizaran por separado, un cambio en `max_length` o en el stride podría aplicarse a uno y no al otro. El error sería silencioso: las etiquetas no coincidirían con las ventanas de validación.
+- **Herencia y no un flag.** Con dos variantes, una base con `build` es más legible que una función con `if train:`. Cada nueva variante agregaría otra rama a la función. Si algún día hubiera muchas variantes que cambian pasos distintos, convendría componer objetos pequeños; con dos, sería sobre-ingeniería.
+- **Lo que la base no delega.** La subclase no puede cambiar cómo se tokeniza, solo qué se hace con el resultado. Así el contrato entre preprocesamiento y post-procesamiento (Fase 4) queda en un solo lugar.
 
 ## 2. Parámetros: `max_length = 384`, `stride = 128`
 
 **Qué mide cada uno.** `max_length` es el número máximo de tokens por ventana, pregunta y especiales incluidos. `stride` es cuántos tokens se repiten entre ventanas consecutivas.
 
-**Por qué 384.** Es el valor estándar de los ejemplos de QA de Hugging Face y lo que la guía pide reportar en `/info`. Con este valor, según nuestros datos:
+**Por qué 384.** Es el valor que usa el curso oficial de Hugging Face en su capítulo de *Question answering* (`max_length = 384`, `stride = 128`, [fuente](https://huggingface.co/learn/llm-course/chapter7/7)). Es también lo que la guía pide reportar en `/info`. El paper de BERT **no** menciona ventanas ni estos valores: en SQuAD 2.0 solo describe el `[CLS]` para preguntas sin respuesta (sección 4.3). Con este valor, según nuestros datos:
 
 | Longitud de entrada (pregunta + contexto) | Valor |
 |---|---|
@@ -35,6 +40,12 @@ Es decir, 384 cubre el 98.95 % de los ejemplos sin ventanas extra. Subir a 512 (
 ## 3. Padding dinámico
 
 No rellenamos a 384 durante el preprocesamiento. El padding se hace por lote, en el collator (`make_collator`).
+
+**Qué es el padding.** El modelo recibe tensores rectangulares: todas las secuencias de un lote deben tener la misma longitud. Si una ventana mide 158 tokens y otra 384, la corta se rellena con tokens `[PAD]` (id 0 en DistilBERT) hasta 384. La máscara de atención (`attention_mask`) marca esos tokens con 0 para que no influyan en el resultado, pero el modelo **igual los procesa**: las multiplicaciones de matrices se hacen sobre toda la longitud, relleno incluido. Por eso el relleno cuesta cómputo aunque no cambie la respuesta.
+
+**Padding fijo vs dinámico.** Con padding fijo, cada ventana se rellena a 384. Con padding dinámico, cada lote se rellena solo hasta su ventana más larga.
+
+**Fuente que dice lo contrario.** El mismo capítulo del curso de Hugging Face escribe que "there is no real benefit to applying dynamic padding here" porque "most of the contexts will be long". Nuestra medición contradice esa premisa para SQuAD 2.0 de entrenamiento: la mediana de la entrada es de 158 tokens, no de 384. Confiamos en la medición, pero conviene repetirla si cambia el dataset.
 
 **Medición sobre el train completo:**
 
@@ -72,7 +83,11 @@ Una respuesta puede empezar o terminar dentro de una subpalabra. Ejemplo: `Teguc
 
 **Decisión: B.** Son menos del 0.3 % de las respuestas, así que el costo de perderlas es mínimo. Con A, en cambio, cada caso enseñaría un span que no coincide con la referencia.
 
-Una alternativa que no evaluamos a fondo es descartar esos ejemplos del entrenamiento en lugar de etiquetarlos como `[CLS]`. Técnicamente es más limpio, porque `[CLS]` significa "no está en esta ventana" y en estos casos la respuesta sí está. Con 222 casos el efecto probablemente es pequeño, y dejamos B por ser lo que ya implementamos y probamos.
+**Respaldo en el paper de BERT.** La sección 4.3 usa `[CLS]` como respuesta nula: "treat questions that do not have an answer as having an answer span with start and end at the [CLS] token". Usamos la misma convención para ventanas que no contienen la respuesta completa.
+
+**Limitación que aceptamos.** Con B, una ventana que sí tiene la respuesta, pero partida, se enseña como "sin respuesta". Eso empuja al modelo hacia `null` en un caso que no lo es. Afecta a 222 casos del train; la alternativa de descartar el ejemplo entero evita ese sesgo, pero cambia la distribución de entrenamiento. Decidimos B por ser lo que ya implementamos y probamos, y lo medimos en la Fase 4 con el dev set, que no se modifica.
+
+**Validación nunca se filtra.** Los casos a mitad de token se conservan en validación, para que el dev set mida el costo real de esa limitación. Filtrar casos difíciles de la evaluación inflaría las métricas que reportamos.
 
 ## 6. Cobertura: ninguna respuesta se pierde
 
@@ -94,7 +109,8 @@ Para cada ventana de validación, `offset_mapping` conserva el offset solo de lo
 - Validación: offsets en `None` fuera del contexto; `example_id` por ventana.
 - Padding dinámico: el lote queda a la longitud de la ventana más larga, no a 384.
 
-## 9. Decisiones abiertas para el equipo
+## 9. Decisiones tomadas
 
-1. **`max_length` 384 o 512.** Con 512 cubrimos casi todo sin ventanas extra, a costa de más cómputo. Mi recomendación es 384 por ser el estándar y tener la medición.
-2. **Opción B o descartar los 222 casos.** Probablemente no cambia el resultado final. Lo dejamos como B a menos que la Fase 3 muestre lo contrario.
+1. **`max_length = 384`.** Decidido por el equipo. Cubre el 98.95 % de los ejemplos sin ventanas extra, y es la configuración de referencia del curso de Hugging Face.
+2. **Opción B: respuestas a mitad de token como `[CLS]`.** Decidido por el equipo. Ver la sección 5 para la limitación que aceptamos y cómo se mide.
+3. **`num_workers = 0` con `pin_memory = True`.** Se configurará así en la Fase 3. Con el preprocesamiento ya precalculado, el collator es barato, y en Windows los workers añaden costo de arranque. Si la GPU queda ociosa, medimos antes de cambiarlo.
