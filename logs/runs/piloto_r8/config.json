@@ -1,0 +1,32 @@
+{
+  "run_name": "piloto_r8",
+  "args": {
+    "run_name": "piloto_r8",
+    "model_id": "distilbert-base-uncased",
+    "lora_rank": 8,
+    "lora_alpha": null,
+    "lr": 0.0002,
+    "epochs": 1,
+    "batch_size": 32,
+    "warmup_ratio": 0.06,
+    "pilot_size": 5000,
+    "tau": 0.0,
+    "max_length": 384,
+    "stride": 128,
+    "seed": 42
+  },
+  "parameters": {
+    "total": 66660868,
+    "trainable": 296450,
+    "trainable_pct": 0.445
+  },
+  "train_examples": 5000,
+  "train_windows": 5058,
+  "dev_select_questions": 5917,
+  "dev_select_windows": 6124,
+  "train_loss": 4.057712578923447,
+  "train_runtime_seconds": 90.9,
+  "total_seconds": 97.7,
+  "git_commit": "566a6c99e1c4bdc9254c99595eb5d246adb763f6",
+  "finished_at": "2026-11-01T15:21:09.316729+00:00"
+}
