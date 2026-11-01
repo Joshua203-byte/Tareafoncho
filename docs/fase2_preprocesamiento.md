@@ -2,6 +2,56 @@
 
 Este documento explica las decisiones de preprocesamiento de `src/features.py` y las respalda con mediciones de `scripts/measure_preprocessing.py` (`logs/preprocessing_stats.json`).
 
+## 0. Glosario: ejemplo, ventana, fila, padding
+
+- **Ejemplo**: una pregunta con su contexto y sus respuestas, tal como viene en SQuAD. Una pregunta, un ejemplo.
+- **Ventana**: un trozo del contexto, tokenizado junto con la pregunta, con un tamaño máximo (`max_length`). Si el contexto no cabe, se parte en varias ventanas.
+- **Fila**: una ventana en la salida del tokenizer. Es lo que el modelo procesa en una pasada.
+- **Padding**: tokens `[PAD]` (ID 0) que se agregan al final de una fila para igualar la longitud de las demás del lote. La máscara de atención los marca con 0.
+
+**Una pregunta puede generar varias filas.** Por eso `overflow_to_sample_mapping` existe: dice a qué pregunta pertenece cada fila.
+
+### Ejemplo paso a paso
+
+Pregunta: `Where is the Lempa River?`
+Contexto: `The Lempa River is the longest river in El Salvador. It flows from Guatemala to the Pacific Ocean.`
+Con `max_length = 24` y `stride = 8` (en el proyecto son 384 y 128, para que el corte se vea).
+
+El tokenizer produce 3 filas:
+
+```
+fila 0: [CLS] where is the lempa river ? [SEP] the lempa river is the longest river in el salvador . [SEP]
+fila 1: [CLS] where is the lempa river ? [SEP] is the longest river in el salvador . it flows from guatemala to [SEP]
+fila 2: [CLS] where is the lempa river ? [SEP] el salvador . it flows from guatemala to the pacific ocean . [SEP]
+```
+
+- La fila 1 **retrocede** para empezar antes del final de la fila 0. Ese retroceso es el *stride*.
+- `is the longest river in el salvador .` aparece en las filas 0 y 1. Si la respuesta cae en esa zona compartida, aparece completa en alguna ventana.
+- `overflow_to_sample_mapping = [0, 0, 0]`: las tres filas son de la pregunta 0.
+
+Con dos preguntas en el mismo lote (`sample-01` y `sample-05`):
+
+```
+filas: 4
+overflow_to_sample_mapping: [0, 1, 1, 1]
+```
+
+- Pregunta 0 (`sample-01`): 1 fila.
+- Pregunta 1 (`sample-05`): 3 filas, que son tres ventanas de la **misma** pregunta.
+
+### Ejemplo de padding
+
+Dos filas en un lote: una de 16 tokens y otra de 24. El lote necesita una tabla rectangular, así que la corta se rellena hasta 24:
+
+```
+tokens:  [CLS] where is the river ? [SEP] the le ##mp ##a river is long . [SEP] [PAD] [PAD] [PAD] [PAD] [PAD] [PAD] [PAD] [PAD]
+mascara:   1     1     1  1   1    1  1    1   1   1   1  1    1  1    1  1   1   0     0     0     0     0     0     0     0
+```
+
+La máscara oculta el relleno en la atención, así que no cambia la respuesta. Pero el cómputo se hace sobre toda la tabla: las columnas `[PAD]` se procesan igual.
+
+**Por qué esto importa.** Con padding fijo a 384, una fila de 158 tokens procesa 226 columnas de relleno. Medido sobre el train, solo el **44.4 %** de las columnas con padding fijo son tokens reales. Con padding dinámico, cada lote se rellena solo hasta su fila más larga.
+
 ## 1. Estructura y diseño
 
 Entrenamiento y validación comparten la tokenización. Solo cambia lo que se hace con cada ventana:
