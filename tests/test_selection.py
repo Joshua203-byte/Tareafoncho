@@ -35,6 +35,15 @@ def test_selector_stops_after_patience_without_gain():
     assert selector.best_value == 0.65
 
 
+def test_continuation_requires_lora():
+    import pytest
+
+    from src.train import parse_args
+
+    with pytest.raises(SystemExit):
+        parse_args(["--run-name", "x", "--lora-rank", "0", "--init-adapter", "models/r16_es/epoch_5"])
+
+
 def test_selector_never_stops_without_patience():
     selector = EpochSelector(patience=0)
     results = [selector.update(e, v) for e, v in [(1, 0.7), (2, 0.6), (3, 0.5)]]

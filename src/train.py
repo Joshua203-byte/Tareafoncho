@@ -105,12 +105,24 @@ def parse_args(argv=None):
     p.add_argument("--seed", type=int, default=SEED)
     p.add_argument("--patience", type=int, default=0,
                    help="Épocas seguidas sin mejorar guide_reweighted antes de parar. 0 = sin parada temprana.")
+    p.add_argument("--lr-schedule", default="linear", choices=["linear", "constant_with_warmup"],
+                   help="linear: decae a cero al final. constant_with_warmup: se mantiene tras el warmup, "
+                        "así extender el número de épocas no cambia la curva ya entrenada.")
+    p.add_argument("--init-adapter", default=None,
+                   help="Adaptador LoRA de una corrida anterior desde el cual continuar (solo LoRA). "
+                        "El optimizador empieza en frío.")
+    p.add_argument("--epoch-offset", type=int, default=0,
+                   help="Épocas ya entrenadas antes de esta corrida, para numerar las épocas de forma continua.")
+    p.add_argument("--resume-from", default=None,
+                   help="Carpeta checkpoint-* de una corrida anterior. Retoma con optimizador y scheduler.")
     args = p.parse_args(argv)
     if args.lr is None:
         args.lr = 2e-4 if args.lora_rank > 0 else 3e-5
     if args.patience > 0 and args.lora_rank == 0:
         # Para fusionar la mejor época necesitamos su adaptador, que solo existe con LoRA.
         p.error("--patience requiere LoRA (--lora-rank > 0)")
+    if args.init_adapter and args.lora_rank == 0:
+        p.error("--init-adapter requiere LoRA (--lora-rank > 0)")
     return args
 
 
@@ -215,7 +227,7 @@ class DevSelectCallback(TrainerCallback):
     parar, marcamos ``control.should_training_stop``.
     """
 
-    def __init__(self, tokenizer, enc, raw_by_id, tau, metrics_path, model_dir, selector):
+    def __init__(self, tokenizer, enc, raw_by_id, tau, metrics_path, model_dir, selector, epoch_offset=0):
         self.tokenizer = tokenizer
         self.enc = enc
         self.raw_by_id = raw_by_id
@@ -223,9 +235,10 @@ class DevSelectCallback(TrainerCallback):
         self.metrics_path = Path(metrics_path)
         self.model_dir = Path(model_dir)
         self.selector = selector
+        self.epoch_offset = epoch_offset
 
     def on_epoch_end(self, args, state, control, model=None, **kwargs):
-        epoch = int(round(state.epoch))
+        epoch = int(round(state.epoch)) + self.epoch_offset
         metrics, _ = evaluate_dev(model, self.tokenizer, self.enc, self.raw_by_id, self.tau)
         record = {"epoch": epoch, "global_step": state.global_step, "tau": self.tau, **metrics}
         with self.metrics_path.open("a", encoding="utf8") as f:
@@ -273,7 +286,12 @@ def main(argv=None):
     raw_by_id = {ex["id"]: {"context": ex["context"], "answers": ex["answers"]} for ex in dev_select}
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_id)
-    model = build_model(args.model_id, args.lora_rank, args.lora_alpha)
+    if args.init_adapter:
+        # Continuación: el adaptador entrenado es el punto de partida, y sigue entrenable.
+        base = AutoModelForQuestionAnswering.from_pretrained(args.model_id)
+        model = PeftModel.from_pretrained(base, args.init_adapter, is_trainable=True)
+    else:
+        model = build_model(args.model_id, args.lora_rank, args.lora_alpha)
     counts = count_parameters(model)
     print(f"Parámetros: {counts}", flush=True)
 
@@ -295,13 +313,17 @@ def main(argv=None):
         # En transformers 5.x, warmup_ratio se eliminó. warmup_steps acepta un float
         # en [0, 1) que se interpreta como fracción del total de pasos de entrenamiento.
         warmup_steps=args.warmup_ratio,
-        lr_scheduler_type="linear",
+        lr_scheduler_type=args.lr_schedule,
         max_grad_norm=1.0,
         bf16=True,  # AMP con bf16: ver docs/fase3_entrenamiento.md, sección 3
         dataloader_num_workers=0,
         dataloader_pin_memory=True,
         logging_steps=50,
-        save_strategy="no",
+        # Checkpoint por época con optimizador y scheduler, para retomar sin repetir
+        # épocas (ver --resume-from). Se guardan sólo los dos más recientes.
+        save_strategy="epoch",
+        save_total_limit=2,
+        save_only_model=False,
         eval_strategy="no",
         report_to="none",
         seed=args.seed,
@@ -311,6 +333,7 @@ def main(argv=None):
     callback = DevSelectCallback(
         tokenizer, enc, raw_by_id, args.tau,
         metrics_path=run_dir / "dev_select_metrics.jsonl", model_dir=model_dir, selector=selector,
+        epoch_offset=args.epoch_offset,
     )
     trainer = Trainer(
         model=model,
@@ -321,7 +344,7 @@ def main(argv=None):
         callbacks=[callback],
     )
 
-    train_output = trainer.train()
+    train_output = trainer.train(resume_from_checkpoint=args.resume_from)
 
     # Registros de entrenamiento y configuración de la corrida.
     with (run_dir / "train_log.jsonl").open("w", encoding="utf8") as f:
@@ -330,9 +353,10 @@ def main(argv=None):
 
     # Si la mejor época no es la última (parada temprana o curva que empeora), fusionamos
     # el adaptador de la mejor época. Así el modelo servido es el que mejor puntuó.
-    last_epoch = int(round(trainer.state.epoch))
-    stopped_early = last_epoch < args.epochs
-    if selector.best_epoch is not None and selector.best_epoch != last_epoch:
+    last_epoch = int(round(trainer.state.epoch)) + args.epoch_offset
+    stopped_early = int(round(trainer.state.epoch)) < args.epochs
+    # Sin LoRA no hay adaptador por época que fusionar: el modelo final es el último.
+    if args.lora_rank > 0 and selector.best_epoch is not None and selector.best_epoch != last_epoch:
         base = AutoModelForQuestionAnswering.from_pretrained(args.model_id)
         final_model = PeftModel.from_pretrained(base, model_dir / f"epoch_{selector.best_epoch}").merge_and_unload()
     else:
@@ -352,6 +376,7 @@ def main(argv=None):
             "metric": SELECTION_METRIC,
             "tau": args.tau,
             "patience": args.patience,
+            "epoch_offset": args.epoch_offset,
             "best_epoch": selector.best_epoch,
             "best_value": selector.best_value,
             "last_epoch": last_epoch,
