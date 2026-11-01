@@ -23,6 +23,9 @@ checkpoints/
 # Material del curso en PDF: solo local, no se versiona
 *.pdf
 
+# Plan de trabajo personal: solo local, no se versiona
+PLAN.md
+
 # Datos de entrenamiento descargados (se regeneran con el script de descarga)
 data/cache/
 datasets/
