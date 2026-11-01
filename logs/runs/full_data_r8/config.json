@@ -1,0 +1,32 @@
+{
+  "run_name": "full_data_r8",
+  "args": {
+    "run_name": "full_data_r8",
+    "model_id": "distilbert-base-uncased",
+    "lora_rank": 8,
+    "lora_alpha": null,
+    "lr": 0.0002,
+    "epochs": 1,
+    "batch_size": 32,
+    "warmup_ratio": 0.06,
+    "pilot_size": 0,
+    "tau": 0.0,
+    "max_length": 384,
+    "stride": 128,
+    "seed": 42
+  },
+  "parameters": {
+    "total": 66660868,
+    "trainable": 296450,
+    "trainable_pct": 0.445
+  },
+  "train_examples": 130319,
+  "train_windows": 131754,
+  "dev_select_questions": 5917,
+  "dev_select_windows": 6124,
+  "train_loss": 2.054929458151285,
+  "train_runtime_seconds": 1188.8,
+  "total_seconds": 1196.4,
+  "git_commit": "6a37881dc26472f36c3c7757f53c368c3a537f32",
+  "finished_at": "2026-11-01T17:02:31.748193+00:00"
+}

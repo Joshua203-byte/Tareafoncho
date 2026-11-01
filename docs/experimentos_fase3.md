@@ -22,6 +22,55 @@ Métricas que reportamos en cada entrada: **EM y F1 globales**, **HasAns F1** (c
 
 ---
 
+## Corrida 2: full_data_r8
+
+**Pregunta.** Con más datos y pasos (train completo, 131 754 ventanas), ¿HasAns F1 supera 10.7 de la piloto?
+
+**Configuración.** LoRA r = 8, α = 16. Mismos hiperparámetros que la piloto. Una época, 4 118 pasos. Único cambio: train completo en lugar de 5 000 ejemplos. Tiempo: 1 189 s (≈ 20 min).
+
+**Pérdida.** Empieza en 5.7 y baja a ≈ 1.65. Pérdida promedio de la corrida: 2.05.
+
+**Resultado en `dev_select` con τ = 0:**
+
+| Métrica | Valor |
+|---|---|
+| EM | 52.97 |
+| F1 | 55.52 |
+| HasAns F1 | 53.05 |
+| NoAns accuracy | 57.83 |
+
+**Barrido de τ** (`logs/runs/full_data_r8/tau_sweep_epoch_1.json`):
+
+| τ | EM | F1 | HasAns F1 | NoAns acc | % null |
+|---|---|---|---|---|---|
+| −∞ (siempre span) | 30.67 | 36.09 | 74.71 | 0.0 | 0.0 |
+| −2 | 42.00 | 46.60 | 69.81 | 24.91 | 18.35 |
+| −1 | 48.17 | 51.79 | 62.65 | 41.65 | 32.63 |
+| 0 | 52.97 | 55.54 | 53.30 | 57.63 | 48.15 |
+| +1 | 56.40 | 57.83 | 40.02 | 74.47 | 65.19 |
+| +∞ (siempre null) | 51.73 | 51.73 | 0.07 | 100.0 | 100.0 |
+
+**Lectura.**
+- El modelo aprendió a extraer: HasAns F1 llega a 74.7 cuando se fuerza el span. La piloto estaba en 10.7.
+- τ controla un intercambio: bajar τ mejora las preguntas con respuesta y empeora las sin respuesta.
+- `dev_select` tiene 48 % de preguntas sin respuesta. El set oculto tiene ≈ 25 %, así que el τ que maximiza F1 aquí no es necesariamente el que conviene allá.
+
+**Aproximación reponderada a 25 % sin respuesta.** Pondera HasAns F1 por 0.75 y NoAns accuracy por 0.25:
+
+| τ | Puntaje reponderado |
+|---|---|
+| −∞ | 56.0 |
+| −4 | 56.6 |
+| −2 | **58.6** |
+| −1 | 57.4 |
+| −0.5 | 56.3 |
+| 0 | 54.4 |
+| +2 | 41.6 |
+
+Es una estimación: usa las medias por tipo de pregunta, no una re-evaluación ponderada. Sugiere que τ = −2 rendiría mejor que τ = 0 en el set oculto. La decisión final de τ es de la Fase 4 y se toma con el dev reponderado, nunca con `dev_report`.
+
+**Pregunta que abre la siguiente corrida.** ¿Más épocas mejoran HasAns F1 y EM? ¿Con r = 16 mejora más que con más épocas?
+
 ## Corrida 1: piloto_r8
 
 **Pregunta.** ¿El pipeline completo funciona de punta a punta (datos, entrenamiento, evaluación, merge)? ¿La pérdida baja?
