@@ -12,6 +12,23 @@ que hacen con cada ventana (``build``):
 
 Así la tokenización vive en un solo lugar y no puede divergir entre ambos flujos.
 
+Por qué herencia (y no funciones sueltas con un flag)
+-----------------------------------------------------
+Con dos variantes que comparten todo menos un paso, una base con un método
+``build`` que cada subclase implementa es lo más legible: quien lee
+``TrainFeatures`` ve de inmediato qué cambia respecto a la validación, sin
+buscar ramas ``if train:`` dentro de una función larga.
+
+Un flag booleano dentro de una sola función también evitaría la herencia, pero
+mezcla dos responsabilidades y crece mal: cada nueva variante agregaría otro
+``if``. Si algún día hubiera muchas variantes que cambian pasos distintos (por
+ejemplo, distintas estrategias de etiquetado), convendría componer objetos
+pequeños en lugar de heredar. Con dos variantes, eso sería sobre-ingeniería.
+
+Lo que la herencia **no** debe permitir es que cada subclase reimplemente la
+tokenización. Por eso ``tokenize`` y ``__call__`` viven en la base y las
+subclases solo sobrescriben ``build``.
+
 Padding dinámico
 ----------------
 Aquí NO hacemos padding. Cada ventana sale con su longitud real, y el padding
