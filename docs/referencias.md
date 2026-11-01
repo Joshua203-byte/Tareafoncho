@@ -18,14 +18,26 @@ Fuentes citables para el `REPORT.md`. Cada cifra indica dónde se verificó.
 
 ## Cifras de SQuAD 2.0 (dev set, F1 / EM)
 
-Fuente: tabla de SQuAD 2.0 en el paper de DeBERTaV3 (He et al., 2021). Verificado vía búsqueda de la tabla, no leyendo el PDF completo. Antes de citarlo en el reporte, confirmar los números directamente en el paper.
+Fuente: tabla principal del paper de DeBERTaV3 (He et al., 2021), columna SQuAD v2.0 F1/EM. Verificado contra la captura de la tabla completa.
 
-| Modelo | F1 | EM |
-|---|---|---|
-| BERT-base | 76.3 | 73.7 |
-| RoBERTa-base | 83.7 | 80.5 |
-| DeBERTa-base | 86.2 | 83.1 |
-| DeBERTa-v3-base | 88.4 | 85.4 |
+| Modelo | Capas / hidden | Parámetros backbone (M) | F1 | EM |
+|---|---|---|---|---|
+| BERT-base | 12 / 768 | 86 | 76.3 | 73.7 |
+| RoBERTa-base | 12 / 768 | 86 | 83.7 | 80.5 |
+| DeBERTa-base | 12 / 768 | 100 | 86.2 | 83.1 |
+| DeBERTa-v3-base | 12 / 768 | 86 | **88.4** | **85.4** |
+
+Modelos pequeños de la misma tabla, útiles como alternativa a DistilBERT (ambos con 6 capas):
+
+| Modelo | Capas / hidden | Parámetros backbone (M) | F1 | EM |
+|---|---|---|---|---|
+| TinyBERT-small | 6 / 768 | 44 | 77.7 | — |
+| MiniLMv2-small | 6 / 768 | 44 | 81.6 | — |
+| BERT-small | 6 / 768 | 44 | 73.2 | — |
+| DeBERTaV3-small | 6 / 768 | 44 | 82.9 | 80.4 |
+| DeBERTaV3-xsmall | 12 / 384 | 22 | 84.8 | 82.0 |
+
+**Ojo con los parámetros.** La columna del paper cuenta solo el backbone, sin la matriz de embeddings. Nuestra medición (`logs/model_benchmark.json`) cuenta el modelo completo, así que los números son mayores. Por ejemplo, BERT-base da 86 M en el paper y 108.9 M en nuestra medición. La diferencia es el vocabulario: DeBERTaV3 tiene 128 K tokens y sus embeddings pesan mucho. Esto hay que aclararlo en el reporte para no comparar peras con manzanas.
 
 No hay cifra verificada de DistilBERT ni de ModernBERT en SQuAD 2.0. Nuestra medición propia reemplazará esta tabla en la Fase 3, con el mismo harness para todos los candidatos.
 
