@@ -84,3 +84,66 @@ def aggregate(scores):
         "NoAns_n": len(no),
         "NoAns_acc": mean([s["em"] for s in no]),
     }
+
+
+# ---------------------------------------------------------------------------
+# Escala de la nota en vivo (guía, sección XIV.1)
+# ---------------------------------------------------------------------------
+# La nota no es F1: cada pregunta vale 1 (exacta, o null correcto), 0.5 (solapamiento
+# parcial juzgado válido) o 0. Aquí usamos una regla en lugar del juez LLM, así que
+# el crédito parcial es un proxy. Por eso también se reporta sin crédito parcial.
+
+SHARE_NULL = 0.25  # proporción de preguntas sin respuesta en el conjunto oculto
+
+
+def item_score(pred, golds, partial_credit=True):
+    """Puntaje de una pregunta según la escala de la guía.
+
+    - Sin respuesta en la referencia: 1 si la predicción es ``null``, 0 si no.
+    - Con respuesta: 0 si la predicción es ``null``. 1 si coincide exacto con alguna
+      referencia. 0.5 si solapa parcialmente (solo con ``partial_credit``). 0 si no.
+    """
+    if not golds:
+        return float(normalize_answer(pred) == "")
+    if normalize_answer(pred) == "":
+        return 0.0
+    if max(exact_match(pred, g) for g in golds):
+        return 1.0
+    if partial_credit and max(f1(pred, g) for g in golds) > 0:
+        return 0.5
+    return 0.0
+
+
+def guide_scores(pairs, share_null=SHARE_NULL):
+    """Puntaje de la escala de la guía sobre una lista de ``(pred, golds)``.
+
+    Devuelve tres valores en [0, 1]:
+
+    - ``guide_raw``: promedio simple sobre las preguntas recibidas.
+    - ``guide_reweighted``: promedia por tipo y pondera a ``share_null`` sin
+      respuesta. Es la aproximación al conjunto oculto. La parada temprana usa este.
+    - ``guide_exact_reweighted``: igual, pero sin crédito parcial. Es una cota inferior.
+
+    Con ``share_null`` igual a 0.25, siempre ``null`` da 0.25: es el baseline de la guía.
+    """
+    has_full, has_exact, no_answer, every = [], [], [], []
+    for pred, golds in pairs:
+        full = item_score(pred, golds, partial_credit=True)
+        every.append(full)
+        if golds:
+            has_full.append(full)
+            has_exact.append(item_score(pred, golds, partial_credit=False))
+        else:
+            no_answer.append(full)
+    if not has_full or not no_answer:
+        raise ValueError("guide_scores necesita preguntas con y sin respuesta")
+
+    def mean(values):
+        return sum(values) / len(values)
+
+    no_mean = mean(no_answer)
+    return {
+        "guide_raw": round(mean(every), 4),
+        "guide_reweighted": round((1 - share_null) * mean(has_full) + share_null * no_mean, 4),
+        "guide_exact_reweighted": round((1 - share_null) * mean(has_exact) + share_null * no_mean, 4),
+    }

@@ -52,30 +52,10 @@ from sweep_tau import TAU_GRID, load_model  # noqa: E402
 from transformers import AutoTokenizer  # noqa: E402
 
 from src.data import eval_features, load_squad  # noqa: E402
-from src.metrics import exact_match, f1, normalize_answer  # noqa: E402
+from src.metrics import SHARE_NULL, item_score  # noqa: E402
 from src.postprocess import predict_example  # noqa: E402
 from src.splits import split_indices  # noqa: E402
 from src.train import MODEL_ID, predict_logits  # noqa: E402
-
-SHARE_NULL = 0.25  # proporción de preguntas sin respuesta en el conjunto oculto
-
-
-def item_score(pred, golds, partial_credit=True):
-    """Puntaje de una pregunta según la escala de la guía.
-
-    - Sin respuesta en la referencia: 1 si la predicción es ``null``, 0 si no.
-    - Con respuesta: 0 si la predicción es ``null``. 1 si coincide exacto con alguna
-      referencia. 0.5 si solapa parcialmente (solo con ``partial_credit``). 0 si no.
-    """
-    if not golds:
-        return float(normalize_answer(pred) == "")
-    if normalize_answer(pred) == "":
-        return 0.0
-    if max(exact_match(pred, g) for g in golds):
-        return 1.0
-    if partial_credit and max(f1(pred, g) for g in golds) > 0:
-        return 0.5
-    return 0.0
 
 
 def summarize(items, tau, null_count, n):

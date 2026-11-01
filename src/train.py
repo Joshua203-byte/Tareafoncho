@@ -10,6 +10,13 @@ Corrida real con LoRA r=16:
 
     .venv\\Scripts\\python.exe -m src.train --run-name lora_r16 --lora-rank 16 --epochs 2
 
+Corrida con parada temprana (tope de 8 épocas, paciencia de 2):
+
+    .venv\\Scripts\\python.exe -m src.train --run-name r16_es --lora-rank 16 --epochs 8 --patience 2
+
+Con parada temprana, el modelo que se fusiona es la mejor época según
+``guide_reweighted`` de ``dev_select``, no necesariamente la última.
+
 Control con fine-tuning completo:
 
     .venv\\Scripts\\python.exe -m src.train --run-name full --lora-rank 0 --lr 3e-5 --epochs 2
@@ -52,6 +59,7 @@ from pathlib import Path
 import torch
 from peft import PeftModel
 from transformers import (
+    AutoModelForQuestionAnswering,
     AutoTokenizer,
     Trainer,
     TrainerCallback,
@@ -61,7 +69,7 @@ from transformers import (
 
 from src.data import eval_features, load_squad, train_dataset
 from src.features import make_collator
-from src.metrics import aggregate, score_example
+from src.metrics import aggregate, guide_scores, score_example
 from src.model import build_model, count_parameters, merge_and_save
 from src.postprocess import predict_example
 from src.splits import split_indices, write_manifest
@@ -69,6 +77,9 @@ from src.splits import split_indices, write_manifest
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_ID = "distilbert-base-uncased"
 SEED = 42
+# Métrica que decide la mejor época y la parada temprana: la escala de la guía
+# reponderada a 25 % sin respuesta. Es una aproximación al conjunto oculto.
+SELECTION_METRIC = "guide_reweighted"
 
 
 # ---------------------------------------------------------------------------
@@ -92,9 +103,14 @@ def parse_args(argv=None):
     p.add_argument("--max-length", type=int, default=384)
     p.add_argument("--stride", type=int, default=128)
     p.add_argument("--seed", type=int, default=SEED)
+    p.add_argument("--patience", type=int, default=0,
+                   help="Épocas seguidas sin mejorar guide_reweighted antes de parar. 0 = sin parada temprana.")
     args = p.parse_args(argv)
     if args.lr is None:
         args.lr = 2e-4 if args.lora_rank > 0 else 3e-5
+    if args.patience > 0 and args.lora_rank == 0:
+        # Para fusionar la mejor época necesitamos su adaptador, que solo existe con LoRA.
+        p.error("--patience requiere LoRA (--lora-rank > 0)")
     return args
 
 
@@ -140,7 +156,8 @@ def evaluate_dev(model, tokenizer, enc, raw_by_id, tau):
     4. Puntúa con EM y F1 contra las referencias.
 
     ``raw_by_id`` mapea el id de cada pregunta a su contexto y sus respuestas.
-    Devuelve ``(metricas, predicciones)``.
+    Devuelve ``(metricas, predicciones)``. Además de EM y F1, las métricas incluyen
+    la escala de la guía (``guide_*``, ver ``src.metrics.guide_scores``).
     """
     logits = predict_logits(model, tokenizer, enc)
     windows_by_id = defaultdict(list)
@@ -149,34 +166,63 @@ def evaluate_dev(model, tokenizer, enc, raw_by_id, tau):
         windows_by_id[ex_id].append(
             {"start_logits": start, "end_logits": end, "offsets": enc["offset_mapping"][i]}
         )
-    scores, predictions = [], {}
+    scores, pairs, predictions = [], [], {}
     for ex_id, ex in raw_by_id.items():
         pred = predict_example(windows_by_id[ex_id], ex["context"], tau=tau)
         predictions[ex_id] = pred["text"]
         scores.append(score_example(pred["text"], ex["answers"]["text"]))
+        pairs.append((pred["text"], ex["answers"]["text"]))
     model.train()  # el Trainer espera el modelo en modo entrenamiento
-    return aggregate(scores), predictions
+    metrics = aggregate(scores)
+    metrics.update(guide_scores(pairs))
+    return metrics, predictions
 
 
 # ---------------------------------------------------------------------------
 # 3. Callback: evaluación de dev_select al final de cada época
 # ---------------------------------------------------------------------------
 
+class EpochSelector:
+    """Elige la mejor época y decide cuándo parar.
+
+    Guarda la época con el valor más alto de ``value``. Para cuando pasan
+    ``patience`` épocas seguidas sin superar ese máximo. Con ``patience = 0``
+    nunca para. Va separada del Trainer para poder probarla sola.
+    """
+
+    def __init__(self, patience=0):
+        self.patience = patience
+        self.best_epoch = None
+        self.best_value = None
+        self.epochs_without_gain = 0
+
+    def update(self, epoch, value):
+        """Registra el valor de una época. Devuelve True si hay que parar."""
+        if self.best_value is None or value > self.best_value:
+            self.best_epoch, self.best_value = epoch, value
+            self.epochs_without_gain = 0
+        else:
+            self.epochs_without_gain += 1
+        return self.patience > 0 and self.epochs_without_gain >= self.patience
+
+
 class DevSelectCallback(TrainerCallback):
     """Evalúa ``dev_select`` al terminar cada época y guarda el resultado.
 
     El Trainer llama a ``on_epoch_end`` automáticamente. Recibe el modelo en
     ``kwargs``. Con LoRA, guardamos el adaptador de cada época para poder elegir
-    después un checkpoint distinto del último.
+    después un checkpoint distinto del último. Si el ``selector`` dice que hay que
+    parar, marcamos ``control.should_training_stop``.
     """
 
-    def __init__(self, tokenizer, enc, raw_by_id, tau, metrics_path, model_dir):
+    def __init__(self, tokenizer, enc, raw_by_id, tau, metrics_path, model_dir, selector):
         self.tokenizer = tokenizer
         self.enc = enc
         self.raw_by_id = raw_by_id
         self.tau = tau
         self.metrics_path = Path(metrics_path)
         self.model_dir = Path(model_dir)
+        self.selector = selector
 
     def on_epoch_end(self, args, state, control, model=None, **kwargs):
         epoch = int(round(state.epoch))
@@ -185,9 +231,15 @@ class DevSelectCallback(TrainerCallback):
         with self.metrics_path.open("a", encoding="utf8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
         print(f"[dev_select época {epoch}] EM={metrics['EM']} F1={metrics['F1']} "
-              f"HasAns_F1={metrics['HasAns_F1']} NoAns_acc={metrics['NoAns_acc']}", flush=True)
+              f"HasAns_F1={metrics['HasAns_F1']} NoAns_acc={metrics['NoAns_acc']} "
+              f"{SELECTION_METRIC}={metrics[SELECTION_METRIC]}", flush=True)
         if isinstance(model, PeftModel):
             model.save_pretrained(self.model_dir / f"epoch_{epoch}")
+        if self.selector.update(epoch, metrics[SELECTION_METRIC]):
+            print(f"Parada temprana en la época {epoch}: sin mejora durante "
+                  f"{self.selector.patience} épocas. Mejor época: {self.selector.best_epoch}.", flush=True)
+            control.should_training_stop = True
+        return control
 
 
 # ---------------------------------------------------------------------------
@@ -255,9 +307,10 @@ def main(argv=None):
         seed=args.seed,
         label_names=["start_positions", "end_positions"],
     )
+    selector = EpochSelector(patience=args.patience)
     callback = DevSelectCallback(
         tokenizer, enc, raw_by_id, args.tau,
-        metrics_path=run_dir / "dev_select_metrics.jsonl", model_dir=model_dir,
+        metrics_path=run_dir / "dev_select_metrics.jsonl", model_dir=model_dir, selector=selector,
     )
     trainer = Trainer(
         model=model,
@@ -275,8 +328,17 @@ def main(argv=None):
         for entry in trainer.state.log_history:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+    # Si la mejor época no es la última (parada temprana o curva que empeora), fusionamos
+    # el adaptador de la mejor época. Así el modelo servido es el que mejor puntuó.
+    last_epoch = int(round(trainer.state.epoch))
+    stopped_early = last_epoch < args.epochs
+    if selector.best_epoch is not None and selector.best_epoch != last_epoch:
+        base = AutoModelForQuestionAnswering.from_pretrained(args.model_id)
+        final_model = PeftModel.from_pretrained(base, model_dir / f"epoch_{selector.best_epoch}").merge_and_unload()
+    else:
+        final_model = model
     final_model_dir = model_dir / "merged"
-    merge_and_save(model, tokenizer, final_model_dir)
+    merge_and_save(final_model, tokenizer, final_model_dir)
 
     config = {
         "run_name": args.run_name,
@@ -286,6 +348,15 @@ def main(argv=None):
         "train_windows": len(train_ds),
         "dev_select_questions": len(dev_select),
         "dev_select_windows": len(enc["input_ids"]),
+        "selection": {
+            "metric": SELECTION_METRIC,
+            "tau": args.tau,
+            "patience": args.patience,
+            "best_epoch": selector.best_epoch,
+            "best_value": selector.best_value,
+            "last_epoch": last_epoch,
+            "stopped_early": stopped_early,
+        },
         "train_loss": train_output.training_loss,
         "train_runtime_seconds": round(train_output.metrics["train_runtime"], 1),
         "total_seconds": round(time.time() - started, 1),
