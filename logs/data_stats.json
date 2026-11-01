@@ -1,0 +1,88 @@
+{
+  "tokenizer": "distilbert-base-uncased",
+  "max_seq_length": 384,
+  "train": {
+    "examples": 130319,
+    "unanswerable": 43498,
+    "unanswerable_fraction": 0.3338,
+    "context_chars_median": 692,
+    "context_chars_p95": 1324,
+    "answer_chars_median": 14,
+    "input_tokens_median": 158,
+    "input_tokens_p95": 292,
+    "examples_over_384_tokens": 1373,
+    "offsets": {
+      "answers_checked": 86821,
+      "mismatches": 0
+    }
+  },
+  "validation": {
+    "examples": 11873,
+    "unanswerable": 5945,
+    "unanswerable_fraction": 0.5007,
+    "context_chars_median": 716,
+    "context_chars_p95": 1446,
+    "answer_chars_median": 14,
+    "input_tokens_median": 163,
+    "input_tokens_p95": 304,
+    "examples_over_384_tokens": 210,
+    "offsets": {
+      "answers_checked": 20302,
+      "mismatches": 0
+    }
+  },
+  "public_sample": [
+    {
+      "id": "sample-01",
+      "is_impossible": false,
+      "input_tokens": 128,
+      "over_window": false,
+      "offsets_ok": true,
+      "references": [
+        "16",
+        "16 attention heads"
+      ]
+    },
+    {
+      "id": "sample-02",
+      "is_impossible": false,
+      "input_tokens": 115,
+      "over_window": false,
+      "offsets_ok": true,
+      "references": [
+        "3.5 days"
+      ]
+    },
+    {
+      "id": "sample-03",
+      "is_impossible": true,
+      "input_tokens": 106,
+      "over_window": false,
+      "offsets_ok": true,
+      "references": []
+    },
+    {
+      "id": "sample-04",
+      "is_impossible": true,
+      "input_tokens": 124,
+      "over_window": false,
+      "offsets_ok": true,
+      "references": []
+    },
+    {
+      "id": "sample-05",
+      "is_impossible": false,
+      "input_tokens": 665,
+      "over_window": true,
+      "offsets_ok": true,
+      "references": [
+        "50,257",
+        "50,257 tokens"
+      ]
+    }
+  ],
+  "always_null_baseline": {
+    "validation_score": 0.5007,
+    "note": "La guía fija 0.25 como baseline porque el set oculto tiene ~25 % sin respuesta."
+  }
+}
