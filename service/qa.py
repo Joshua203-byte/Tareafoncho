@@ -52,7 +52,7 @@ class QAPredictor:
 
         ``answer`` es un fragmento literal de ``context`` y ``start`` su posición
         en caracteres; ambos son ``None`` cuando la respuesta es "sin respuesta".
-        ``score`` está en [0, 1] (ver nota al final del método).
+        ``score`` está en [0, 1] (ver ``_confidence``).
         """
         # 1. Ventanas con offsets. ValidationFeatures espera un lote (dict de listas), aquí de 1 ejemplo.
         feats = self._features({"id": [example_id], "question": [question], "context": [context]})
@@ -83,10 +83,23 @@ class QAPredictor:
             windows, context, tau=self.tau, n_best=N_BEST, max_answer_len=MAX_ANSWER_LEN
         )
         answered = pred["text"] != ""
-        # Nota sobre el score: pred["score"] no está en [0, 1] (es un margen de logits si hay
-        # span, y el logit nulo crudo si no). La sigmoide lo acota; no es una probabilidad calibrada.
         return {
             "answer": pred["text"] if answered else None,
             "start": pred["start"] if answered else None,
-            "score": round(_sigmoid(pred["score"]), 4),
+            "score": self._confidence(pred["margin"], answered),
         }
+
+    def _confidence(self, margin, answered):
+        """``score`` en [0, 1]: qué tan lejos del umbral quedó la decisión tomada.
+
+        ``margin = mejor_span - puntaje_nulo`` y la decisión es "span" si ``margin > τ``.
+        Con ``d = margin - τ``, el score es ``sigmoide(d)`` si se respondió con span y
+        ``sigmoide(-d)`` si se devolvió null. Así significa lo mismo en los dos casos:
+        0.5 es un empate con el umbral y se acerca a 1 cuanto más clara es la decisión.
+        Sin ningún span válido (``margin`` es None) el null es seguro: score 1.0.
+        No es una probabilidad calibrada.
+        """
+        if margin is None:
+            return 1.0
+        d = margin - self.tau
+        return round(_sigmoid(d if answered else -d), 4)

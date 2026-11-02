@@ -58,7 +58,9 @@ def predict_example(windows, context, tau=0.0, n_best=20, max_answer_len=30):
 
     ``windows`` es una lista de dicts con ``start_logits``, ``end_logits`` y
     ``offsets`` (uno por ventana). Devuelve ``{"text": str, "start": int|None,
-    "score": float}``. ``text == ""`` significa "sin respuesta".
+    "score": float, "margin": float|None}``. ``text == ""`` significa "sin respuesta".
+    ``margin`` es ``mejor_span - score_nulo`` (sin restar τ), o ``None`` si ninguna
+    ventana tuvo un span válido. Lo usa la API para calcular su ``score``.
     """
     best_score, best_chars, null_score = None, None, None
     for w in windows:
@@ -70,12 +72,13 @@ def predict_example(windows, context, tau=0.0, n_best=20, max_answer_len=30):
         if span_score is not None and (best_score is None or span_score > best_score):
             best_score, best_chars = span_score, chars
 
+    margin = None if best_score is None else best_score - null_score
     if best_chars is None or best_score <= null_score + tau:
-        return {"text": "", "start": None, "score": null_score}
+        return {"text": "", "start": None, "score": null_score, "margin": margin}
 
     start, end = best_chars
     text = context[start:end]
     # Guarda para cambios futuros: hoy es trivialmente cierta, porque text sale de
     # context[start:end]. Si alguien cambia cómo se calcula text, esto lo detecta.
     assert context[start : start + len(text)] == text
-    return {"text": text, "start": start, "score": best_score - null_score}
+    return {"text": text, "start": start, "score": best_score - null_score, "margin": margin}
