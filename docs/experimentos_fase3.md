@@ -22,6 +22,29 @@ Métricas que reportamos en cada entrada: **EM y F1 globales**, **HasAns F1** (c
 
 ---
 
+## Corrida 8: full_ft_4ep (fine-tuning completo, reanudado hasta 4 épocas)
+
+**Pregunta.** ¿Dos épocas más mejoran el proxy de la guía sobre `dev_select` respecto a la época 2 (0.716)? ¿Dónde está el máximo?
+
+**Configuración.** Reanudación desde el checkpoint de la época 2 de `full_ft_2ep` (optimizador y scheduler incluidos, sin repetir épocas). Mismo lr constante tras el warmup. A partir de esta corrida se guarda el modelo completo de cada época. Tiempo de las épocas 3 y 4: 2 345 s (≈ 40 min).
+
+**Resultados.** Barrido de τ sobre cada época (`item_score_epoch_<n>.json`):
+
+| Época | Mejor τ | Proxy | Solo exactas | Proxy con τ = −2 |
+|---|---|---|---|---|
+| 2 | −2 | 0.716 | 0.669 | 0.716 |
+| **3** | **−2** | **0.721** | 0.675 | **0.721** |
+| 4 | −4 | 0.721 | 0.676 | 0.709 |
+
+**Lectura.**
+- La curva llega a una meseta alrededor de 0.72. La época 3 y la 4 empatan en el mejor τ, pero la 4 necesita τ = −4, y con el τ común (−2) cae a 0.709.
+- Elegimos la **época 3 con τ = −2**: es la mejor con el mismo τ de las anteriores, y no necesita un τ distinto. Además llega antes, así que tiene menos riesgo de sobreajuste.
+- Ganancia frente a la época 2: +0.005. Dentro del error de muestreo, así que dos épocas más no cambian mucho.
+
+**Modelo para la API.** `models/full_ft_4ep/epoch_3` (pesos completos, τ = −2). El tokenizador no está en esa carpeta: hay que tomarlo de `models/full_ft_4ep/merged`, o copiarlo.
+
+**Pregunta que abre el siguiente paso.** ¿Evaluamos `epoch_3` con τ = −2 sobre `dev_report`, una sola vez?
+
 ## Corrida 7: full_ft_2ep (fine-tuning completo, 2 épocas)
 
 **Pregunta.** ¿El fine-tuning completo supera a LoRA (r = 16, mejor época 0.697) en el proxy de la guía sobre `dev_select`? ¿Llega a 0.70?

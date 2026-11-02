@@ -47,12 +47,16 @@ TAU_GRID = [-1e9, -4, -2, -1, -0.5, 0, 0.5, 1, 2, 4, 1e9]
 
 
 def load_model(run_name, checkpoint):
-    """Carga el modelo de una corrida: adaptador LoRA sobre la base, o modelo fusionado."""
-    model_dir = ROOT / "models" / run_name
-    if checkpoint == "merged":
-        return AutoModelForQuestionAnswering.from_pretrained(model_dir / "merged")
-    base = AutoModelForQuestionAnswering.from_pretrained(MODEL_ID)
-    return PeftModel.from_pretrained(base, model_dir / checkpoint)
+    """Carga el modelo de una corrida: adaptador LoRA sobre la base, o modelo completo.
+
+    Una carpeta con ``adapter_config.json`` es un adaptador LoRA. Cualquier otra
+    (``merged`` o un ``epoch_<n>`` de fine-tuning completo) es un modelo entero.
+    """
+    model_dir = ROOT / "models" / run_name / checkpoint
+    if (model_dir / "adapter_config.json").exists():
+        base = AutoModelForQuestionAnswering.from_pretrained(MODEL_ID)
+        return PeftModel.from_pretrained(base, model_dir)
+    return AutoModelForQuestionAnswering.from_pretrained(model_dir)
 
 
 def main(argv=None):
