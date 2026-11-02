@@ -7,9 +7,20 @@ Es la misma cadena que en la evaluación, en orden:
 2. El modelo devuelve logits de inicio y fin para cada ventana.
 3. ``predict_example`` (src/postprocess.py) decide el span o ``null`` con τ.
 
-Las ventanas de una misma pregunta se pasan en un solo lote con relleno. El
-relleno va al final: los tokens rellenados no tienen offset, así que el
-post-procesamiento los descarta.
+Relleno (padding) dinámico
+--------------------------
+Las ventanas de una misma pregunta se pasan en un solo lote, y un tensor necesita
+que todas midan lo mismo. Por eso se rellenan con ceros, pero **no hasta 384**:
+solo hasta la ventana más larga de esa petición (el mismo principio que el
+``DataCollatorWithPadding`` del entrenamiento).
+
+- Contexto corto: hay una sola ventana y no se rellena nada.
+- Contexto largo: las ventanas llenas miden 384 y solo la última, más corta, se
+  completa con ceros.
+
+El relleno va al final y ``attention_mask`` lo marca con 0 para que el modelo lo
+ignore. Los tokens rellenados no tienen offset (``None``), así que el
+post-procesamiento los descarta aunque sus logits fueran altos.
 """
 
 import math
