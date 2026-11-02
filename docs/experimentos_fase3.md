@@ -22,6 +22,39 @@ Métricas que reportamos en cada entrada: **EM y F1 globales**, **HasAns F1** (c
 
 ---
 
+## Corrida 7: full_ft_2ep (fine-tuning completo, 2 épocas)
+
+**Pregunta.** ¿El fine-tuning completo supera a LoRA (r = 16, mejor época 0.697) en el proxy de la guía sobre `dev_select`? ¿Llega a 0.70?
+
+**Configuración.** Sin LoRA: todos los pesos entrenan (66.96 M parámetros). lr 3e-5, batch 32, dos épocas (8 236 pasos), calendario constante tras el warmup de 6 % (`constant_with_warmup`), para poder extender después sin cambiar la curva. Checkpoints por época con optimizador. Selección con τ = −2.
+
+**Resultado por época** (τ = −2, proxy de la guía, reponderado a 25 % sin respuesta):
+
+| Época | Proxy | Solo exactas | EM | HasAns F1 | NoAns acc |
+|---|---|---|---|---|---|
+| 1 | 0.687 | 0.638 | 54.86 | 79.47 | 38.71 |
+| 2 | **0.716** | **0.668** | 61.53 | 79.17 | 51.95 |
+
+**Barrido de τ sobre el modelo final** (`logs/runs/full_ft_2ep/item_score_merged.json`):
+
+| τ | Proxy | Solo exactas | % null |
+|---|---|---|---|
+| −4 | 0.707 | 0.655 | 21.8 |
+| −2 | **0.716** | **0.669** | 31.4 |
+| −1 | 0.707 | 0.664 | 37.2 |
+| −0.5 | 0.704 | 0.662 | 40.1 |
+| 0 | 0.695 | 0.654 | 43.2 |
+| +∞ (control) | 0.250 | 0.250 | 100 |
+
+**Lectura.**
+- Supera a la mejor LoRA (0.697) y a `r16_ep2` (0.649). El salto es grande en HasAns F1 (≈ 79 contra ≈ 65 de LoRA), así que la extracción mejora de verdad.
+- La región estable va de τ = −4 a −0.5 (todos ≥ 0.704). τ = −2 queda en el centro, no en un pico aislado.
+- Margen sobre 0.70: 0.016. El error de muestreo de 50 preguntas ronda ±0.05, y la época y τ se eligieron sobre `dev_select`. Así que el resultado es prometedor, pero no garantiza 60/60.
+
+**Decisión.** Como se alcanzó 0.70 en el proxy, no damos las 2 épocas extra por ahora. Si la decisión se revisa, la continuación con `--resume-from` retoma desde el checkpoint de la época 2 con el optimizador guardado.
+
+**Modelo.** `models/full_ft_2ep/merged` (fine-tuning completo, τ = −2). Pendiente de confirmar con `dev_report` (fase 4), una sola vez.
+
 ## Corrida 6: r16_es (LoRA r = 16, parada temprana)
 
 **Pregunta.** Con un tope de 8 épocas y paciencia de 2 sobre `dev_select`, ¿la curva sigue subiendo más allá de 2 épocas? ¿Dónde para?
