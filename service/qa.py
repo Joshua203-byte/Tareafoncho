@@ -29,7 +29,27 @@ def _sigmoid(x):
 
 
 class QAPredictor:
-    """Modelo cargado en memoria. Una instancia por proceso (1 worker)."""
+    """Modelo cargado en memoria. Una instancia por proceso (1 worker).
+
+    Concurrencia
+    ------------
+    ``/predict`` corre ``predict`` en el *threadpool* de FastAPI, así que dos
+    peticiones simultáneas pueden llamarlo a la vez desde hilos distintos. Un
+    ``threading.Lock`` hace que solo una use el predictor a la vez; las demás
+    esperan su turno (se encolan). Se hace por tres razones:
+
+    1. **CPU:** una inferencia ya usa todos los núcleos. Dos en paralelo no
+       terminan antes, compiten por los mismos núcleos y las dos tardan más.
+       En serie, cada una tarda lo que tarda sola y la latencia es predecible.
+    2. **Tokenizer:** el tokenizer *fast* (escrito en Rust) cambia su estado interno
+       al truncar y rellenar; usarlo desde dos hilos a la vez puede fallar con
+       ``RuntimeError: Already borrowed``. Por eso el lock cubre la tokenización
+       y no solo el modelo.
+    3. **Memoria:** una sola inferencia a la vez acota el uso de RAM.
+
+    Costo: si llegaran muchas peticiones juntas, la última esperaría la suma de
+    todas. El harness manda una por una, así que en la práctica no hay cola.
+    """
 
     def __init__(self, model_dir, tau):
         """Carga tokenizer y modelo desde ``model_dir`` y deja todo listo para inferir.
@@ -44,7 +64,7 @@ class QAPredictor:
         self.params = sum(p.numel() for p in self.model.parameters())
         # Mismas ventanas que en el entrenamiento (384 tokens, solapamiento 128).
         self._features = ValidationFeatures(self.tokenizer, max_length=MAX_SEQ_LENGTH, stride=DOC_STRIDE)
-        # El modelo es único y la inferencia en CPU no gana con concurrencia: se serializa.
+        # Serializa tokenización + inferencia. Motivos en el docstring de la clase.
         self._lock = threading.Lock()
 
     def predict(self, example_id, context, question):
@@ -54,19 +74,27 @@ class QAPredictor:
         en caracteres; ambos son ``None`` cuando la respuesta es "sin respuesta".
         ``score`` está en [0, 1] (ver ``_confidence``).
         """
-        # 1. Ventanas con offsets. ValidationFeatures espera un lote (dict de listas), aquí de 1 ejemplo.
-        feats = self._features({"id": [example_id], "question": [question], "context": [context]})
-        # 2. Las ventanas miden distinto: se rellenan al largo de la más larga para formar un tensor.
-        batch = self.tokenizer.pad(
-            {"input_ids": feats["input_ids"], "attention_mask": feats["attention_mask"]},
-            return_tensors="pt",
-        )
-        # inference_mode: sin gradientes ni memoria extra, solo se calcula la salida.
-        with self._lock, torch.inference_mode():
-            out = self.model(**batch)
+        # El lock cubre tokenización e inferencia (ver el docstring de la clase).
+        with self._lock:
+            # 1. Ventanas con offsets. ValidationFeatures espera un lote (dict de listas), aquí de 1 ejemplo.
+            feats = self._features({"id": [example_id], "question": [question], "context": [context]})
+            # 2. Relleno dinámico: no se rellena a 384, sino al largo de la ventana más larga
+            #    de ESTA petición. Con un contexto corto hay una sola ventana y no se rellena nada;
+            #    con uno largo, solo la última ventana (más corta) se completa con ceros.
+            #    attention_mask marca qué posiciones son relleno para que el modelo las ignore.
+            batch = self.tokenizer.pad(
+                {"input_ids": feats["input_ids"], "attention_mask": feats["attention_mask"]},
+                return_tensors="pt",
+            )
+            # inference_mode: sin gradientes ni memoria extra, solo se calcula la salida.
+            with torch.inference_mode():
+                out = self.model(**batch)
 
         padded_len = batch["input_ids"].shape[1]
         windows = []
+        # offsets[j] = (car_inicio, car_fin) del token j DENTRO DEL TEXTO ORIGINAL del contexto, no
+        # su posición en la ventana. Los tokens de la pregunta y los especiales tienen None. Como
+        # los caracteres se miden en el contexto, el mismo ``start`` vale para cualquier ventana.
         for i, offsets in enumerate(feats["offset_mapping"]):
             # Los offsets se rellenan con None hasta la longitud del lote, igual que los logits:
             # sin esto, un candidato en la zona de relleno daría IndexError.
