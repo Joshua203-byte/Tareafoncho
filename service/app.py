@@ -32,9 +32,14 @@ logger = logging.getLogger("qa_service")
 
 
 class PredictRequest(BaseModel):
-    """Cuerpo de ``/predict``. ``extra="forbid"`` sigue el esquema del contrato."""
+    """Cuerpo de ``/predict``. ``extra="forbid"`` sigue el esquema del contrato.
 
-    model_config = ConfigDict(extra="forbid")
+    Los límites de longitud son los del contrato: id 1–64, context 1–5000,
+    question 1–500 caracteres. Un tipo equivocado (p. ej. un número en ``id``)
+    también falla la validación.
+    """
+
+    model_config = ConfigDict(extra="forbid")  # un campo desconocido es un 400, no se ignora
 
     id: str = Field(min_length=1, max_length=64)
     context: str = Field(min_length=1, max_length=5000)
@@ -42,6 +47,10 @@ class PredictRequest(BaseModel):
 
 
 def error_response(status, code, detail=None, headers=None):
+    """Respuesta de error con la forma del contrato: ``{"error": code, "detail": ...}``.
+
+    ``detail`` es opcional y solo se incluye si se da.
+    """
     body = {"error": code}
     if detail is not None:
         body["detail"] = detail
@@ -49,11 +58,17 @@ def error_response(status, code, detail=None, headers=None):
 
 
 def unauthorized():
+    """401 con ``WWW-Authenticate: Bearer``, como pide el contrato."""
     return error_response(401, "unauthorized", headers={"WWW-Authenticate": "Bearer"})
 
 
 def is_authorized(request, expected_token):
-    """Compara el token en tiempo constante y el esquema ``Bearer`` exacto (sensible a mayúsculas)."""
+    """Compara el token en tiempo constante y el esquema ``Bearer`` exacto (sensible a mayúsculas).
+
+    ``hmac.compare_digest`` tarda lo mismo aunque el token acierte más o menos
+    caracteres, así que el tiempo de respuesta no filtra el token.
+    """
+    # "Bearer abc" -> scheme="Bearer", token="abc". Si no hay cabecera, ambos quedan vacíos.
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
     if scheme != "Bearer" or not token:
         return False
@@ -61,6 +76,10 @@ def is_authorized(request, expected_token):
 
 
 def first_validation_detail(exc):
+    """Convierte el primer error de Pydantic en un texto corto para el campo ``detail``.
+
+    Un campo ausente da ``field 'question' is required``, igual que el ejemplo del contrato.
+    """
     error = exc.errors()[0]
     field = ".".join(str(part) for part in error["loc"] if part != "body")
     if error["type"] == "missing":
@@ -72,11 +91,13 @@ def create_app(settings=None, predictor_factory=None):
     """Crea la aplicación. Los argumentos existen para las pruebas.
 
     ``settings=None`` lee el entorno al arrancar: si falta ``QA_API_TOKEN``, el
-    arranque falla. ``predictor_factory(model_dir, tau)`` devuelve el predictor.
+    arranque falla. ``predictor_factory(model_dir, tau)`` devuelve el predictor;
+    por defecto es ``QAPredictor``, y las pruebas pasan uno falso para no cargar el modelo.
     """
     factory = predictor_factory or QAPredictor
 
     def load_predictor(app, cfg):
+        """Carga el modelo (lento) y lo deja en ``app.state.predictor``. Corre en un hilo."""
         try:
             app.state.predictor = factory(cfg.model_dir, cfg.tau)
             logger.info("modelo cargado desde %s (tau=%s)", cfg.model_dir, cfg.tau)
@@ -86,9 +107,11 @@ def create_app(settings=None, predictor_factory=None):
 
     @asynccontextmanager
     async def lifespan(app):
-        cfg = load_settings() if settings is None else settings
+        """Arranque: lee la configuración y lanza la carga del modelo sin bloquear el servidor."""
+        cfg = load_settings() if settings is None else settings  # sin token, esto lanza y no arranca
         app.state.settings = cfg
-        app.state.predictor = None
+        app.state.predictor = None  # None = todavía cargando
+        # Hilo aparte: si la carga bloqueara el arranque, /health ni siquiera respondería 503.
         threading.Thread(target=load_predictor, args=(app, cfg), daemon=True).start()
         yield
 
@@ -96,23 +119,27 @@ def create_app(settings=None, predictor_factory=None):
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request, exc):
+        """Errores HTTP de FastAPI (404, 405...) con la forma de error del contrato."""
         if exc.status_code == 401:
             return unauthorized()
         return error_response(exc.status_code, "bad_request", str(exc.detail))
 
     @app.exception_handler(Exception)
     async def unhandled_error(request, exc):
+        """Cualquier fallo inesperado es un 500 ``internal_error``; el detalle va al log, no al cliente."""
         logger.exception("error no controlado en %s", request.url.path)
         return error_response(500, "internal_error")
 
     @app.get("/health")
     def health():
+        """Público. 200 ``ok`` cuando el modelo está cargado; 503 ``loading`` mientras tanto."""
         if app.state.predictor is None:
             return JSONResponse({"status": "loading"}, status_code=503)
         return {"status": "ok"}
 
     @app.get("/info")
     def info(request: Request):
+        """Protegido. Equipo, checkpoint base, parámetros reales y parámetros de ventana."""
         if not is_authorized(request, app.state.settings.api_token):
             return unauthorized()
         predictor = app.state.predictor
@@ -120,7 +147,7 @@ def create_app(settings=None, predictor_factory=None):
             return error_response(503, "internal_error", "model is loading")
         return {
             "team": app.state.settings.team,
-            "model": BASE_MODEL_ID,
+            "model": BASE_MODEL_ID,  # el checkpoint base, no la carpeta que servimos
             "params": predictor.params,
             "max_seq_length": MAX_SEQ_LENGTH,
             "doc_stride": DOC_STRIDE,
@@ -128,6 +155,11 @@ def create_app(settings=None, predictor_factory=None):
 
     @app.post("/predict")
     async def predict(request: Request):
+        """Protegido. Orden de las comprobaciones: token, JSON, esquema, modelo, inferencia.
+
+        Se lee el cuerpo a mano (no con un parámetro tipado) para poder revisar el
+        token antes de validar el cuerpo: 401 gana sobre 400.
+        """
         if not is_authorized(request, app.state.settings.api_token):
             return unauthorized()
         try:
@@ -146,11 +178,13 @@ def create_app(settings=None, predictor_factory=None):
             return error_response(500, "internal_error", "model is loading")
 
         started = time.perf_counter()
+        # La inferencia bloquea la CPU: va a un hilo para que el servidor siga atendiendo /health.
         result = await run_in_threadpool(predictor.predict, item.id, item.context, item.question)
+        # Solo se registra el tiempo: nunca el contexto ni la pregunta.
         logger.info("predict ms=%.0f", (time.perf_counter() - started) * 1000)
-        return {"id": item.id, **result}
+        return {"id": item.id, **result}  # el id se devuelve tal cual llegó
 
     return app
 
 
-app = create_app()
+app = create_app()  # instancia que carga uvicorn: ``uvicorn service.app:app``

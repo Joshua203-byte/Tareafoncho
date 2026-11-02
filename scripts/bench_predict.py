@@ -25,6 +25,7 @@ SAMPLE = Path(__file__).resolve().parent.parent / "public_sample.json"
 
 
 def main():
+    """Carga el predictor, calienta una vez y mide ``--repeats`` veces cada pregunta del set público."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-dir", default=os.environ.get("QA_MODEL_DIR", DEFAULT_MODEL_DIR))
     parser.add_argument("--tau", type=float, default=float(os.environ.get("QA_TAU", DEFAULT_TAU)))

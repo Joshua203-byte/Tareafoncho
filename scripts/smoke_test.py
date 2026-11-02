@@ -46,6 +46,7 @@ def check_item(response, item_id, context):
 
 
 def main():
+    """Revisa /health y /info, lanza N peticiones a /predict y sale con código 1 si algo falla."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://localhost:8000")
     parser.add_argument("--n", type=int, default=50)

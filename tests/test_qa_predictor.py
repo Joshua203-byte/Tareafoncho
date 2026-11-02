@@ -24,6 +24,7 @@ requires_model = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def predictor():
+    """Un solo predictor para todo el módulo: cargar el modelo cuesta unos segundos."""
     from service.qa import QAPredictor
 
     return QAPredictor(MODEL_DIR, tau=0.0)
@@ -31,6 +32,7 @@ def predictor():
 
 @requires_model
 def test_answer_is_a_verbatim_span(predictor):
+    """La respuesta es un trozo literal del contexto y ``start`` apunta a él (o ambos son None)."""
     context = "The Lempa River is the longest river in El Salvador, flowing about 422 km from Guatemala to the Pacific Ocean."
     pred = predictor.predict("t-1", context, "How long is the Lempa River?")
     if pred["answer"] is not None:
@@ -42,6 +44,7 @@ def test_answer_is_a_verbatim_span(predictor):
 
 @requires_model
 def test_long_context_is_handled_in_windows(predictor):
+    """El contexto más largo del set público (varias ventanas) también devuelve un span válido."""
     items = json.loads(SAMPLE.read_text(encoding="utf-8"))["items"]
     long_item = max(items, key=lambda it: len(it["context"]))
     pred = predictor.predict(long_item["id"], long_item["context"], long_item["question"])

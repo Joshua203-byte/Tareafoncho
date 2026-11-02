@@ -24,6 +24,7 @@ from src.postprocess import predict_example
 
 
 def _sigmoid(x):
+    """Comprime un número real a (0, 1). Es la forma de cumplir el rango del ``score``."""
     return 1.0 / (1.0 + math.exp(-x))
 
 
@@ -31,29 +32,44 @@ class QAPredictor:
     """Modelo cargado en memoria. Una instancia por proceso (1 worker)."""
 
     def __init__(self, model_dir, tau):
+        """Carga tokenizer y modelo desde ``model_dir`` y deja todo listo para inferir.
+
+        ``tau`` es el umbral de "sin respuesta" (ver ``src/postprocess.py``).
+        """
         self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
         self.model = AutoModelForQuestionAnswering.from_pretrained(model_dir)
-        self.model.eval()
+        self.model.eval()  # apaga el dropout: en inferencia las respuestas deben ser deterministas
         self.tau = tau
+        # Total real de parámetros del modelo servido; /info lo reporta tal cual.
         self.params = sum(p.numel() for p in self.model.parameters())
+        # Mismas ventanas que en el entrenamiento (384 tokens, solapamiento 128).
         self._features = ValidationFeatures(self.tokenizer, max_length=MAX_SEQ_LENGTH, stride=DOC_STRIDE)
         # El modelo es único y la inferencia en CPU no gana con concurrencia: se serializa.
         self._lock = threading.Lock()
 
     def predict(self, example_id, context, question):
-        """Devuelve ``{"answer": str|None, "start": int|None, "score": float}``."""
+        """Responde una pregunta. Devuelve ``{"answer": str|None, "start": int|None, "score": float}``.
+
+        ``answer`` es un fragmento literal de ``context`` y ``start`` su posición
+        en caracteres; ambos son ``None`` cuando la respuesta es "sin respuesta".
+        ``score`` está en [0, 1] (ver nota al final del método).
+        """
+        # 1. Ventanas con offsets. ValidationFeatures espera un lote (dict de listas), aquí de 1 ejemplo.
         feats = self._features({"id": [example_id], "question": [question], "context": [context]})
+        # 2. Las ventanas miden distinto: se rellenan al largo de la más larga para formar un tensor.
         batch = self.tokenizer.pad(
             {"input_ids": feats["input_ids"], "attention_mask": feats["attention_mask"]},
             return_tensors="pt",
         )
+        # inference_mode: sin gradientes ni memoria extra, solo se calcula la salida.
         with self._lock, torch.inference_mode():
             out = self.model(**batch)
 
         padded_len = batch["input_ids"].shape[1]
         windows = []
         for i, offsets in enumerate(feats["offset_mapping"]):
-            # Los offsets se rellenan con None hasta la longitud del lote, igual que los logits.
+            # Los offsets se rellenan con None hasta la longitud del lote, igual que los logits:
+            # sin esto, un candidato en la zona de relleno daría IndexError.
             windows.append(
                 {
                     "start_logits": out.start_logits[i].numpy(),
@@ -62,10 +78,13 @@ class QAPredictor:
                 }
             )
 
+        # 3. Mejor span entre todas las ventanas vs. puntaje nulo, con el umbral τ.
         pred = predict_example(
             windows, context, tau=self.tau, n_best=N_BEST, max_answer_len=MAX_ANSWER_LEN
         )
         answered = pred["text"] != ""
+        # Nota sobre el score: pred["score"] no está en [0, 1] (es un margen de logits si hay
+        # span, y el logit nulo crudo si no). La sigmoide lo acota; no es una probabilidad calibrada.
         return {
             "answer": pred["text"] if answered else None,
             "start": pred["start"] if answered else None,
