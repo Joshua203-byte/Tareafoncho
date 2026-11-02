@@ -10,6 +10,21 @@ Decisiones que siguen el contrato al pie de la letra:
 - El modelo se carga en un hilo al arrancar (*lifespan*), así que ``/health`` ya
   responde 503 mientras tanto. Uvicorn arranca con 1 worker: el modelo vive en un
   solo proceso.
+
+Control de acceso
+-----------------
+**Dónde se valida el token:** en ``is_authorized`` (más abajo), que llaman ``/info`` y
+``/predict`` como primera comprobación, antes de leer el cuerpo. El valor esperado sale
+de ``QA_API_TOKEN`` vía ``service/config.py`` y vive en ``app.state.settings``; nunca
+está en el código ni en git.
+
+**Qué NO hace la autenticación** (límites conocidos, también en REPORT.md §9):
+
+- Es un único token compartido por todos los clientes: no distingue quién llama.
+- No hay rotación automática: para cambiarlo se cambia ``QA_API_TOKEN`` y se reinicia.
+- No limita peticiones por segundo ni bloquea tras intentos fallidos, así que alguien
+  podría probar tokens sin freno (``compare_digest`` solo evita filtrar el token por tiempo).
+- No cifra nada por sí misma: el cifrado lo pone el túnel HTTPS.
 """
 
 import hmac
@@ -67,6 +82,9 @@ def is_authorized(request, expected_token):
 
     ``hmac.compare_digest`` tarda lo mismo aunque el token acierte más o menos
     caracteres, así que el tiempo de respuesta no filtra el token.
+
+    Este es el único lugar donde se valida el token. Es un único token compartido,
+    sin rotación ni límite de intentos (ver "Control de acceso" al inicio del módulo).
     """
     # "Bearer abc" -> scheme="Bearer", token="abc". Si no hay cabecera, ambos quedan vacíos.
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
