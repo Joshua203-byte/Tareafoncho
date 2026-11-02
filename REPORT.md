@@ -8,7 +8,7 @@
 | Members | Diego Emiliano Romero Castillo, Joshua Gabriel Garcilazo Avendaño, Monica Daniela Alvarenga Mejia, Carlos Eduardo Moreno Diaz, Violeta Natalia Jacobo Bonilla |
 | Repository URL | Pending |
 | `submission` commit hash | Pending: filled in when the tag is created |
-| Public service URL used at the dry run | Pending: tunnel from Phase 6 (ngrok chosen, not running yet) |
+| Public service URL used at the dry run | Pending: filled in at the dry run (ngrok fixed domain, already working) |
 | AI tools used (which, and for what) | Claude Code (Claude Haiku 5.5 and Claude Sonnet 5.5) to write the service, the tests, the measurement scripts and this report. Every number comes from our own runs, which are cited in the repository. |
 
 ## 1. Model choice and justification
@@ -46,7 +46,7 @@
 - **Model loading:** in a background thread at startup (*lifespan*). While it loads, `/health` answers 503 `loading`. If `QA_API_TOKEN` is missing, startup fails.
 - **Request flow:** the token is checked first. Then the JSON is parsed and validated against the contract schema (length limits and extra fields). Next, `ValidationFeatures` splits the question and context into 384-token windows with a 128-token overlap, so long contexts are covered by several windows. One model pass over the batch of windows, on CPU and under a lock. `predict_example` applies τ and cuts the text out of the context using the offsets. An `assert` guarantees `context[start:start+len] == answer`.
 - **Access control:** `Authorization: Bearer` is compared with `hmac.compare_digest`. Both the scheme and the token are case-sensitive. Without a valid token the answer is always 401, even if the body is broken. The value comes from `QA_API_TOKEN`, never from the code; `.env` is in `.gitignore`.
-- **Tunnel:** ngrok (agent installed with winget). Pending: update the agent (the account requires 3.28.0 or newer), start it with `ngrok http 8000`, and test it from another network.
+- **Tunnel:** ngrok 3.39.11 (installed from the Microsoft Store) with the free account's fixed domain, started with `ngrok http 8000` while the service listens on `127.0.0.1:8000`. The five guide `curl` tests and a 50-request smoke test passed through the public URL (`logs/service/smoke_test_ngrok.txt`). Still pending: the same test from another network (mobile data) and a second tunnel as backup.
 - **Tokenizer:** the weights folder has no tokenizer, so the service uses `QA_TOKENIZER_DIR` if set, then the model folder, then `distilbert-base-uncased` (fine-tuning does not change the vocabulary).
 - **How to run** from a clean machine:
 
@@ -78,6 +78,7 @@ sample-01 asks how many attention heads BERT-large has, and the model returns th
 | Parameters | 66,364,418 (merged model; `/info` reports it) |
 | Size on disk | 265 MB (`model.safetensors`, fp32) |
 | Mean latency per `/predict` request on our laptop (CPU) | 37–41 ms for contexts of ≈ 450 characters; 330 ms for the 3,171-character context (several windows). Measured with `scripts/bench_predict.py` (`logs/service/bench_predict.txt`); the timings move by about 20 % between runs. |
+| HTTP smoke test through the ngrok tunnel (same laptop) | 50 sequential requests in 13.6 s, slowest 565 ms, 0 failures: the tunnel adds about 150 ms per request (`logs/service/smoke_test_ngrok.txt`) |
 | HTTP smoke test (localhost, no tunnel) | 50 sequential requests in 5.9 s, slowest 400 ms, 0 failures (`scripts/smoke_test.py`, `logs/service/smoke_test_local.txt`) |
 | Laptop CPU and RAM | Intel Core i7-12650H (10 cores, 16 threads), 16 GB RAM |
 
