@@ -1,0 +1,32 @@
+{
+  "run_name": "full_data_r16_ep2",
+  "args": {
+    "run_name": "full_data_r16_ep2",
+    "model_id": "distilbert-base-uncased",
+    "lora_rank": 16,
+    "lora_alpha": null,
+    "lr": 0.0002,
+    "epochs": 2,
+    "batch_size": 32,
+    "warmup_ratio": 0.06,
+    "pilot_size": 0,
+    "tau": 0.0,
+    "max_length": 384,
+    "stride": 128,
+    "seed": 42
+  },
+  "parameters": {
+    "total": 66955780,
+    "trainable": 591362,
+    "trainable_pct": 0.883
+  },
+  "train_examples": 130319,
+  "train_windows": 131754,
+  "dev_select_questions": 5917,
+  "dev_select_windows": 6124,
+  "train_loss": 1.710073751289327,
+  "train_runtime_seconds": 2407.3,
+  "total_seconds": 2414.1,
+  "git_commit": "03e99c63343433ceac7e99ee96535b954bb44bd2",
+  "finished_at": "2026-11-01T19:26:52.689593+00:00"
+}

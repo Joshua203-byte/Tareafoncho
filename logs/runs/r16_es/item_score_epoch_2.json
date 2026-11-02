@@ -1,0 +1,101 @@
+[
+  {
+    "tau": -1000000000.0,
+    "null_pct": 0.0,
+    "score_raw": 0.3962,
+    "score_reweighted": 0.6152,
+    "score_exact_only_reweighted": 0.5519,
+    "HasAns_score": 0.8203,
+    "NoAns_score": 0.0
+  },
+  {
+    "tau": -4,
+    "null_pct": 18.27,
+    "score_raw": 0.5379,
+    "score_reweighted": 0.6667,
+    "score_exact_only_reweighted": 0.6103,
+    "HasAns_score": 0.7873,
+    "NoAns_score": 0.305
+  },
+  {
+    "tau": -2,
+    "null_pct": 35.46,
+    "score_raw": 0.6186,
+    "score_reweighted": 0.6656,
+    "score_exact_only_reweighted": 0.6202,
+    "HasAns_score": 0.7096,
+    "NoAns_score": 0.5335
+  },
+  {
+    "tau": -1,
+    "null_pct": 46.59,
+    "score_raw": 0.6412,
+    "score_reweighted": 0.6359,
+    "score_exact_only_reweighted": 0.5986,
+    "HasAns_score": 0.6309,
+    "NoAns_score": 0.6509
+  },
+  {
+    "tau": -0.5,
+    "null_pct": 52.66,
+    "score_raw": 0.6497,
+    "score_reweighted": 0.6157,
+    "score_exact_only_reweighted": 0.5829,
+    "HasAns_score": 0.584,
+    "NoAns_score": 0.711
+  },
+  {
+    "tau": 0,
+    "null_pct": 58.54,
+    "score_raw": 0.6511,
+    "score_reweighted": 0.5891,
+    "score_exact_only_reweighted": 0.5622,
+    "HasAns_score": 0.531,
+    "NoAns_score": 0.7633
+  },
+  {
+    "tau": 0.5,
+    "null_pct": 64.76,
+    "score_raw": 0.6464,
+    "score_reweighted": 0.555,
+    "score_exact_only_reweighted": 0.5341,
+    "HasAns_score": 0.4694,
+    "NoAns_score": 0.8117
+  },
+  {
+    "tau": 1,
+    "null_pct": 70.61,
+    "score_raw": 0.6338,
+    "score_reweighted": 0.5139,
+    "score_exact_only_reweighted": 0.4976,
+    "HasAns_score": 0.4017,
+    "NoAns_score": 0.8506
+  },
+  {
+    "tau": 2,
+    "null_pct": 80.9,
+    "score_raw": 0.6044,
+    "score_reweighted": 0.4348,
+    "score_exact_only_reweighted": 0.4264,
+    "HasAns_score": 0.2761,
+    "NoAns_score": 0.9111
+  },
+  {
+    "tau": 4,
+    "null_pct": 93.8,
+    "score_raw": 0.5473,
+    "score_reweighted": 0.3126,
+    "score_exact_only_reweighted": 0.3115,
+    "HasAns_score": 0.0929,
+    "NoAns_score": 0.9719
+  },
+  {
+    "tau": 1000000000.0,
+    "null_pct": 100.0,
+    "score_raw": 0.517,
+    "score_reweighted": 0.25,
+    "score_exact_only_reweighted": 0.25,
+    "HasAns_score": 0.0,
+    "NoAns_score": 1.0
+  }
+]

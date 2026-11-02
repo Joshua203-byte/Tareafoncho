@@ -1,0 +1,2 @@
+{"epoch": 3, "global_step": 12354, "tau": -2.0, "n": 5917, "EM": 64.41, "F1": 68.02, "HasAns_n": 2858, "HasAns_EM": 70.43, "HasAns_F1": 77.91, "NoAns_n": 3059, "NoAns_acc": 58.78, "guide_raw": 0.6737, "guide_reweighted": 0.7213, "guide_exact_reweighted": 0.6749}
+{"epoch": 4, "global_step": 16472, "tau": -2.0, "n": 5917, "EM": 68.14, "F1": 71.23, "HasAns_n": 2858, "HasAns_EM": 66.03, "HasAns_F1": 72.42, "NoAns_n": 3059, "NoAns_acc": 70.12, "guide_raw": 0.7062, "guide_reweighted": 0.7089, "guide_exact_reweighted": 0.67}

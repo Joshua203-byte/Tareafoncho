@@ -1,0 +1,47 @@
+{
+  "run_name": "full_ft_2ep",
+  "args": {
+    "run_name": "full_ft_2ep",
+    "model_id": "distilbert-base-uncased",
+    "lora_rank": 0,
+    "lora_alpha": null,
+    "lr": 3e-05,
+    "epochs": 2,
+    "batch_size": 32,
+    "warmup_ratio": 0.06,
+    "pilot_size": 0,
+    "tau": -2.0,
+    "max_length": 384,
+    "stride": 128,
+    "seed": 42,
+    "patience": 0,
+    "lr_schedule": "constant_with_warmup",
+    "init_adapter": null,
+    "epoch_offset": 0,
+    "resume_from": null
+  },
+  "parameters": {
+    "total": 66364418,
+    "trainable": 66364418,
+    "trainable_pct": 100.0
+  },
+  "train_examples": 130319,
+  "train_windows": 131754,
+  "dev_select_questions": 5917,
+  "dev_select_windows": 6124,
+  "selection": {
+    "metric": "guide_reweighted",
+    "tau": -2.0,
+    "patience": 0,
+    "epoch_offset": 0,
+    "best_epoch": 2,
+    "best_value": 0.7157,
+    "last_epoch": 2,
+    "stopped_early": false
+  },
+  "train_loss": 1.356623757979776,
+  "train_runtime_seconds": 2358.3,
+  "total_seconds": 2363.5,
+  "git_commit": "ec8fc3310f508107206f87577ca32c01433c8111",
+  "finished_at": "2026-11-02T00:22:19.853382+00:00"
+}

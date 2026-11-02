@@ -1,0 +1,48 @@
+{
+  "seed": 42,
+  "dev_select": {
+    "questions": 5917,
+    "articles": [
+      "Construction",
+      "European_Union_law",
+      "Force",
+      "French_and_Indian_War",
+      "Fresno,_California",
+      "Geology",
+      "Huguenot",
+      "Imperialism",
+      "Jacksonville,_Florida",
+      "Normans",
+      "Packet_switching",
+      "Prime_number",
+      "Rhine",
+      "Scottish_Parliament",
+      "Southern_California",
+      "Steam_engine",
+      "University_of_Chicago"
+    ]
+  },
+  "dev_report": {
+    "questions": 5956,
+    "articles": [
+      "1973_oil_crisis",
+      "Amazon_rainforest",
+      "Black_Death",
+      "Civil_disobedience",
+      "Computational_complexity_theory",
+      "Ctenophora",
+      "Economic_inequality",
+      "Harvard_University",
+      "Immune_system",
+      "Intergovernmental_Panel_on_Climate_Change",
+      "Islamism",
+      "Oxygen",
+      "Pharmacy",
+      "Private_school",
+      "Sky_(United_Kingdom)",
+      "Victoria_(Australia)",
+      "Warsaw",
+      "Yuan_dynasty"
+    ]
+  }
+}
