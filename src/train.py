@@ -246,8 +246,9 @@ class DevSelectCallback(TrainerCallback):
         print(f"[dev_select época {epoch}] EM={metrics['EM']} F1={metrics['F1']} "
               f"HasAns_F1={metrics['HasAns_F1']} NoAns_acc={metrics['NoAns_acc']} "
               f"{SELECTION_METRIC}={metrics[SELECTION_METRIC]}", flush=True)
-        if isinstance(model, PeftModel):
-            model.save_pretrained(self.model_dir / f"epoch_{epoch}")
+        # Con LoRA guardamos el adaptador; con fine-tuning completo, el modelo entero.
+        # Así cualquier época se puede elegir después, no sólo la última.
+        model.save_pretrained(self.model_dir / f"epoch_{epoch}")
         if self.selector.update(epoch, metrics[SELECTION_METRIC]):
             print(f"Parada temprana en la época {epoch}: sin mejora durante "
                   f"{self.selector.patience} épocas. Mejor época: {self.selector.best_epoch}.", flush=True)
