@@ -33,7 +33,7 @@ def main():
     args = parser.parse_args()
 
     load_start = time.perf_counter()
-    predictor = QAPredictor(args.model_dir, tau=args.tau)
+    predictor = QAPredictor(args.model_dir, tau=args.tau, tokenizer_dir=os.environ.get("QA_TOKENIZER_DIR"))
     load_s = time.perf_counter() - load_start
     size_mb = sum(p.stat().st_size for p in Path(args.model_dir).glob("*.safetensors")) / 1e6
     print(f"modelo: {args.model_dir} | params={predictor.params:,} | size={size_mb:.0f} MB | load={load_s:.1f} s")

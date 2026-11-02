@@ -4,10 +4,11 @@ Variables de entorno
 --------------------
 ``QA_API_TOKEN``  token compartido (obligatorio). Si falta o está vacío, el
                   servicio no arranca: es mejor caerse que quedar abierto.
-``QA_MODEL_DIR``  carpeta con el modelo fusionado y su tokenizer.
-``QA_TAU``        umbral τ de "sin respuesta". Pendiente: se fija al final con
-                  el modelo definitivo. Mientras tanto vale 0.0, que NO es un
-                  valor calibrado.
+``QA_MODEL_DIR``  carpeta con los pesos del modelo (``config.json`` y ``model.safetensors``).
+``QA_TOKENIZER_DIR``  carpeta con el tokenizer, si no está en ``QA_MODEL_DIR``. Si ni
+                  una ni otra lo tiene, se usa el del checkpoint base (``BASE_MODEL_ID``).
+``QA_TAU``        umbral τ de "sin respuesta". Por defecto -2.0, el valor fijado con
+                  dev_select para el modelo final (docs/fase4_umbral_y_evaluacion.md).
 ``QA_TEAM``       nombre del equipo, tal como lo registró el instructor.
 
 El token nunca se guarda en el código ni en un archivo versionado. Se lee solo
@@ -21,8 +22,8 @@ con lo que ``/info`` informa.
 import os
 from dataclasses import dataclass
 
-DEFAULT_MODEL_DIR = "models/r16_es/merged_epoch5"
-DEFAULT_TAU = 0.0  # placeholder: el valor final se fija con los resultados de dev_select
+DEFAULT_MODEL_DIR = "models/full_ft_4ep/epoch_3"  # fine-tuning completo, época 3 (modelo final)
+DEFAULT_TAU = -2.0  # fijado con dev_select; más negativo = responde más seguido
 DEFAULT_TEAM = "Fonchos"
 BASE_MODEL_ID = "distilbert-base-uncased"  # checkpoint base del que parte nuestro fine-tuning
 
@@ -44,6 +45,7 @@ class Settings:
     model_dir: str
     tau: float
     team: str
+    tokenizer_dir: str | None = None  # None: usar el de model_dir o, si no hay, el del checkpoint base
 
 
 def load_settings(env=None):
@@ -66,4 +68,5 @@ def load_settings(env=None):
         model_dir=env.get("QA_MODEL_DIR", DEFAULT_MODEL_DIR),
         tau=tau,
         team=env.get("QA_TEAM", DEFAULT_TEAM),
+        tokenizer_dir=env.get("QA_TOKENIZER_DIR") or None,
     )

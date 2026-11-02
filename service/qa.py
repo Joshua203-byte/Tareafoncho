@@ -29,7 +29,9 @@ import threading
 import torch
 from transformers import AutoModelForQuestionAnswering, AutoTokenizer
 
-from service.config import DOC_STRIDE, MAX_ANSWER_LEN, MAX_SEQ_LENGTH, N_BEST
+from pathlib import Path
+
+from service.config import BASE_MODEL_ID, DOC_STRIDE, MAX_ANSWER_LEN, MAX_SEQ_LENGTH, N_BEST
 from src.features import ValidationFeatures
 from src.postprocess import predict_example
 
@@ -62,12 +64,19 @@ class QAPredictor:
     todas. El harness manda una por una, así que en la práctica no hay cola.
     """
 
-    def __init__(self, model_dir, tau):
-        """Carga tokenizer y modelo desde ``model_dir`` y deja todo listo para inferir.
+    def __init__(self, model_dir, tau, tokenizer_dir=None):
+        """Carga tokenizer y modelo y deja todo listo para inferir.
 
-        ``tau`` es el umbral de "sin respuesta" (ver ``src/postprocess.py``).
+        ``model_dir`` tiene los pesos. ``tau`` es el umbral de "sin respuesta" (ver
+        ``src/postprocess.py``). El tokenizer sale de ``tokenizer_dir`` si se da; si no,
+        de ``model_dir`` cuando ahí está ``tokenizer.json``; y si tampoco, del checkpoint
+        base ``distilbert-base-uncased``, que es el mismo que usó el entrenamiento
+        (el fine-tuning no cambia el vocabulario). Este último caso necesita el caché
+        local de Hugging Face o internet la primera vez.
         """
-        self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
+        if tokenizer_dir is None:
+            tokenizer_dir = model_dir if (Path(model_dir) / "tokenizer.json").exists() else BASE_MODEL_ID
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir)
         self.model = AutoModelForQuestionAnswering.from_pretrained(model_dir)
         self.model.eval()  # apaga el dropout: en inferencia las respuestas deben ser deterministas
         self.tau = tau

@@ -25,7 +25,7 @@ class FakePredictor:
 
     params = 66362880
 
-    def __init__(self, model_dir, tau):
+    def __init__(self, model_dir, tau, tokenizer_dir=None):
         self.tau = tau
 
     def predict(self, example_id, context, question):
@@ -73,7 +73,7 @@ def test_health_is_503_while_model_loads():
     """Mientras el modelo carga, /health responde 503 loading (la carga se retiene con un Event)."""
     release = threading.Event()
 
-    def slow_factory(model_dir, tau):
+    def slow_factory(model_dir, tau, tokenizer_dir=None):
         release.wait(5)
         return FakePredictor(model_dir, tau)
 
@@ -215,11 +215,12 @@ def test_load_settings_requires_token():
 
 
 def test_load_settings_reads_env_and_defaults():
-    """Lee las cuatro variables; sin QA_TAU, τ vale 0.0 y sin QA_TEAM el nombre es Fonchos."""
+    """Lee las cuatro variables; sin QA_TAU, τ vale -2.0 y sin QA_TEAM el nombre es Fonchos."""
     cfg = load_settings({"QA_API_TOKEN": "abc", "QA_TAU": "-1.5", "QA_MODEL_DIR": "models/x", "QA_TEAM": "team-09"})
     assert cfg == Settings(api_token="abc", model_dir="models/x", tau=-1.5, team="team-09")
     defaults = load_settings({"QA_API_TOKEN": "abc"})
-    assert defaults.tau == 0.0
+    assert defaults.tau == -2.0
+    assert defaults.tokenizer_dir is None
     assert defaults.team == "Fonchos"
 
 

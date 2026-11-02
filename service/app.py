@@ -99,7 +99,7 @@ def create_app(settings=None, predictor_factory=None):
     def load_predictor(app, cfg):
         """Carga el modelo (lento) y lo deja en ``app.state.predictor``. Corre en un hilo."""
         try:
-            app.state.predictor = factory(cfg.model_dir, cfg.tau)
+            app.state.predictor = factory(cfg.model_dir, cfg.tau, tokenizer_dir=cfg.tokenizer_dir)
             logger.info("modelo cargado desde %s (tau=%s)", cfg.model_dir, cfg.tau)
         except Exception:
             # Sin modelo el servicio se queda en 503 "loading": mejor que responder mal.
