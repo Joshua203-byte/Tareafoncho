@@ -6,10 +6,45 @@ Decisiones que siguen el contrato al pie de la letra:
 - ``/info`` y ``/predict`` exigen ``Authorization: Bearer <QA_API_TOKEN>``. La
   autenticación va antes de leer el cuerpo: sin token válido siempre es 401, aunque
   el JSON esté roto.
-- Todo error tiene la forma ``{"error": <código>, "detail": <texto opcional>}``.
+- Todo error tiene la forma ``{"error": <código>, "detail": <texto opcional>}``, y el
+  harness cuenta cualquier respuesta distinta como ítem perdido. Los códigos válidos son
+  ``unauthorized`` (401), ``bad_request`` (400) e ``internal_error`` (500). Aquí se usa
+  400 y no 422 para los cuerpos inválidos: la guía acepta ambos y así el código HTTP
+  coincide con el nombre ``bad_request``.
 - El modelo se carga en un hilo al arrancar (*lifespan*), así que ``/health`` ya
   responde 503 mientras tanto. Uvicorn arranca con 1 worker: el modelo vive en un
   solo proceso.
+
+Orden de las comprobaciones en ``/predict``
+-------------------------------------------
+Cada una corta la ejecución con su error si falla:
+
+====  ==============================================  ===========================================
+ #    Qué se revisa                                   Si falla
+====  ==============================================  ===========================================
+ 1    Token (``is_authorized``)                       401 ``unauthorized``
+ 2    ¿El cuerpo es JSON?                             400 ``bad_request`` "body is not valid JSON"
+ 3    ¿Es un objeto ``{...}`` (no lista ni número)?   400 ``bad_request`` "body must be a JSON object"
+ 4    ¿Cumple el esquema? (``PredictRequest``)        400 ``bad_request`` con el campo que falla
+ 5    ¿El modelo ya cargó?                            500 ``internal_error`` "model is loading"
+ 6    Inferencia                                      200, o 500 ``internal_error`` si algo explota
+====  ==============================================  ===========================================
+
+**Por qué el cuerpo se lee a mano.** Lo habitual en FastAPI es declarar
+``def predict(item: PredictRequest)`` y dejar que el framework valide. Pero entonces valida
+*antes* de que corra nuestro código, y no se podría revisar el token primero. Con
+``request: Request`` y ``json.loads(await request.body())`` el orden lo decidimos nosotros.
+
+**Errores que nadie provoca a propósito.** Dos manejadores registrados con
+``@app.exception_handler`` mantienen la forma del contrato:
+
+- ``StarletteHTTPException``: errores que FastAPI genera solo (404 en una ruta que no existe,
+  405 con el método equivocado). Sin esto saldría su formato propio, ``{"detail": "Not Found"}``.
+- ``Exception``: red de seguridad. Cualquier fallo inesperado se vuelve 500 ``internal_error``;
+  el detalle va al log y no al cliente, para no filtrar rutas ni mensajes internos.
+
+**Qué se registra.** Solo cuánto tardó cada ``/predict`` (``predict ms=...``). Nunca el
+contexto ni la pregunta.
 
 Control de acceso
 -----------------
@@ -51,7 +86,8 @@ class PredictRequest(BaseModel):
 
     Los límites de longitud son los del contrato: id 1–64, context 1–5000,
     question 1–500 caracteres. Un tipo equivocado (p. ej. un número en ``id``)
-    también falla la validación.
+    también falla la validación, y un campo que el contrato no define (``extra``)
+    es un error en vez de ignorarse, porque el esquema dice ``additionalProperties: false``.
     """
 
     model_config = ConfigDict(extra="forbid")  # un campo desconocido es un 400, no se ignora
@@ -96,7 +132,10 @@ def is_authorized(request, expected_token):
 def first_validation_detail(exc):
     """Convierte el primer error de Pydantic en un texto corto para el campo ``detail``.
 
-    Un campo ausente da ``field 'question' is required``, igual que el ejemplo del contrato.
+    Pydantic puede devolver varios errores a la vez; el contrato solo pide un texto
+    legible, así que se usa el primero. Un campo ausente da ``field 'question' is
+    required``, igual que el ejemplo del contrato. Otro error da, por ejemplo,
+    ``field 'id': String should have at most 64 characters``.
     """
     error = exc.errors()[0]
     field = ".".join(str(part) for part in error["loc"] if part != "body")
@@ -173,10 +212,11 @@ def create_app(settings=None, predictor_factory=None):
 
     @app.post("/predict")
     async def predict(request: Request):
-        """Protegido. Orden de las comprobaciones: token, JSON, esquema, modelo, inferencia.
+        """Protegido. Orden de las comprobaciones: token, JSON, objeto, esquema, modelo, inferencia.
 
-        Se lee el cuerpo a mano (no con un parámetro tipado) para poder revisar el
-        token antes de validar el cuerpo: 401 gana sobre 400.
+        La tabla completa está en el docstring del módulo. Se lee el cuerpo a mano (no con
+        un parámetro tipado) para poder revisar el token antes de validar el cuerpo: 401
+        gana sobre 400. La respuesta es 200 con ``id``, ``answer``, ``start`` y ``score``.
         """
         if not is_authorized(request, app.state.settings.api_token):
             return unauthorized()
@@ -193,10 +233,13 @@ def create_app(settings=None, predictor_factory=None):
 
         predictor = app.state.predictor
         if predictor is None:
+            # El contrato no define un 503 para /predict; 500 es el código de error que sí existe.
             return error_response(500, "internal_error", "model is loading")
 
         started = time.perf_counter()
-        # La inferencia bloquea la CPU: va a un hilo para que el servidor siga atendiendo /health.
+        # La inferencia bloquea la CPU unos 50 ms. Si corriera directo en esta función ``async``
+        # congelaría todo el servidor (incluido /health); en un hilo, el servidor sigue atendiendo.
+        # El lock del predictor hace que dos peticiones no usen el modelo a la vez.
         result = await run_in_threadpool(predictor.predict, item.id, item.context, item.question)
         # Solo se registra el tiempo: nunca el contexto ni la pregunta.
         logger.info("predict ms=%.0f", (time.perf_counter() - started) * 1000)
