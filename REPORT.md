@@ -16,7 +16,7 @@
 - **Base checkpoint:** `distilbert-base-uncased` ([Sanh et al., 2019](https://arxiv.org/abs/1910.01108); 66.4 M parameters, 6 layers, hidden size 768), with no SQuAD fine-tuning (we checked the Hub).
 - **Alternatives considered:** `bert-base-uncased` (108.9 M parameters, 235 ms per question on CPU), `roberta-base` (124.1 M, 229 ms), `deberta-v3-base` (183.8 M, 387 ms), `ModernBERT-base` (149.6 M, 317 ms), against 110 ms for DistilBERT in the same benchmark (`logs/model_benchmark.json`). With a 5 s timeout, tunnel latency and a 150 s cap for 50 items, a 12-layer encoder leaves little margin for a modest quality gain.
 - **Trade-off:** a lower quality ceiling in exchange for about 40 ms per short question on CPU and a 265 MB model.
-- **Adaptation:** full fine-tuning (all 66,364,418 parameters). LoRA (rank 16) was our control and scored 0.697 on the selection metric against 0.721.
+- **Adaptation:** full fine-tuning (all 66,364,418 parameters). LoRA (rank 16) was our control and scored 0.697 on the guide-scale score (defined in Section 2) against 0.721.
 
 ## 2. Training
 
@@ -40,6 +40,8 @@
 |---|---|---|---|---|---|
 | `dev_select`, epoch 3 (used to choose epoch and τ) | 64.41 | 68.02 | 77.91 | 58.78 | 0.721 |
 | `dev_report`, evaluated once (clean) | 62.56 | 66.27 | 74.20 | 57.83 | 0.694 |
+
+**Guide-scale score** is our proxy for the instructor's live grading (guide §XIV.1): each question scores 1 for an exact match or a correct `null`, and 0 for a wrong answer. We cannot run the instructor's LLM judge, so any non-exact answer with token F1 > 0 gets 0.5, which is generous. The average is reweighted to 25 % unanswerable questions, as in the hidden set; always answering `null` gives the 0.25 baseline, and the instructor's reference is 0.70. It is an estimate, not the real grade.
 
 Epoch 4 has higher EM and F1 but a lower guide-scale score (0.709): it handles unanswerable questions better and answerable ones worse, and the guide scores both (`logs/dev_select.png`).
 
