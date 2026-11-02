@@ -20,9 +20,11 @@ con token, expuesta por un túnel público. El reporte está en [REPORT.md](REPO
    ```bash
    pip install -r requirements.txt
    ```
-2. Consigue la carpeta del modelo. **Los pesos no están en git**: copia
-   `models/full_ft_4ep/epoch_3` (pesos) y `models/full_ft_4ep/merged` (tokenizer) de la
-   carpeta compartida del equipo.
+2. Consigue el modelo. **Los pesos no están en git**: bájalos del
+   [release `weights-v1`](https://github.com/Joshua203-byte/Tareafoncho/releases/tag/weights-v1)
+   (`fonchos-qa-weights-v1.zip`, 245 MB) y descomprímelos **en la raíz del repo**
+   (`Expand-Archive fonchos-qa-weights-v1.zip -DestinationPath .`). Deja pesos y tokenizer en
+   `models/full_ft_4ep/epoch_3`, la ruta por defecto: no hace falta `QA_TOKENIZER_DIR`.
 3. Copia `.env.example` a `.env` y pon tu token en `QA_API_TOKEN`. `.env` está en
    `.gitignore`: el token nunca se versiona.
 4. Arranca (PowerShell):

@@ -65,7 +65,7 @@ Epoch 4 has higher EM and F1 but a lower guide-scale score (0.709), so we serve 
 
 ```bash
 pip install -r requirements.txt
-# copy models/ (weights are not in git) and put the token in .env
+# weights are not in git: unzip the GitHub release `weights-v1` in the repo root, then put the token in .env
 export QA_API_TOKEN=...                      # PowerShell: $env:QA_API_TOKEN="..."
 export QA_MODEL_DIR=models/full_ft_4ep/epoch_3
 export QA_TOKENIZER_DIR=models/full_ft_4ep/merged
