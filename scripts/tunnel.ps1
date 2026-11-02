@@ -1,4 +1,4 @@
-# Abre un túnel público hacia el servicio local (puerto 8000 por defecto).
+﻿# Abre un túnel público hacia el servicio local (puerto 8000 por defecto).
 #
 # Uso (PowerShell, con el servicio ya corriendo: ver scripts/run.ps1):
 #     .\scripts\tunnel.ps1                       # túnel principal: ngrok

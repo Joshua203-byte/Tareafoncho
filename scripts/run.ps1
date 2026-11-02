@@ -1,4 +1,4 @@
-# Arranca el servicio con la configuración de .env (que NO está en git).
+﻿# Arranca el servicio con la configuración de .env (que NO está en git).
 #
 # Uso (PowerShell, desde la raíz del repo):
 #     .\scripts\run.ps1            # puerto 8000
