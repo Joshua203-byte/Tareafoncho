@@ -67,6 +67,9 @@ guía, el smoke test y la batería de robustez (`logs/service/*_ngrok.txt` y `*_
 servicio con `run.ps1`, túnel con `tunnel.ps1`, y `<url>/health` debe dar `{"status":"ok"}`.
 El token del día de la presentación se pone en `.env` (`QA_API_TOKEN`) y se reinicia el servicio.
 
+Qué es un túnel, cómo funcionan ngrok y Cloudflare, sus límites, qué medimos y qué hacer si falla
+uno: [docs/fase6_tunel.md](docs/fase6_tunel.md).
+
 ## Pruebas y mediciones
 
 ```bash
