@@ -4,57 +4,57 @@
 
 | Field | Value |
 |---|---|
-| Team id | `team-XX` (pendiente: registrar con el instructor) |
-| Members | Pendiente: nombres del equipo |
-| Repository URL | Pendiente |
-| `submission` commit hash | Pendiente: se llena al crear el tag |
-| Public service URL used at the dry run | Pendiente: túnel de la Fase 6, aún sin elegir |
-| AI tools used (which, and for what) | Claude Code (Claude Haiku 5.5) para escribir el servicio, las pruebas, los scripts de medición y este reporte. Todas las cifras salen de corridas nuestras, citadas en el repo. |
+| Team id | `Fonchos` |
+| Members | Pending: team member names |
+| Repository URL | Pending |
+| `submission` commit hash | Pending: filled in when the tag is created |
+| Public service URL used at the dry run | Pending: tunnel from Phase 6 (ngrok chosen, not running yet) |
+| AI tools used (which, and for what) | Claude Code (Claude Haiku 5.5 and Claude Sonnet 5.5) to write the service, the tests, the measurement scripts and this report. Every number comes from our own runs, which are cited in the repository. |
 
 ## 1. Model choice and justification
 
-- **Base checkpoint:** `distilbert-base-uncased` (66.4 M parámetros, 6 capas, dimensión 768). Es el checkpoint base, sin fine-tuning en SQuAD. Verificamos en el Hub que no tenga la etiqueta `squad`.
-- **Alternatives considered:** `bert-base-uncased` (108.9 M, 235 ms por pregunta en CPU), `roberta-base` (124.1 M, 229 ms), `deberta-v3-base` (183.8 M, 387 ms) y `ModernBERT-base` (149.6 M, 317 ms), medidos en la Fase 1 (`docs/fase1_datos_y_modelo.md`). Los descartamos: con 5 s por petición, el túnel y un tope global de 150 s para 50 ítems, un encoder de 12 capas deja poco margen. También descartamos `distilbert-base-uncased-distilled-squad` porque ya está entrenado en SQuAD y la guía lo prohíbe.
-- **Trade-off:** perdemos calidad frente a los modelos de 12 capas. A cambio, cada pregunta corta responde en 55–70 ms en CPU y el modelo ocupa 265 MB.
-- **Adaptación:** LoRA de rango 16 sobre las cuatro matrices de atención de cada bloque, con la cabeza de QA entrenada completa. Son 591 362 parámetros entrenables (0.88 %). Al terminar se fusionan los adaptadores, así que la API carga un modelo normal sin `peft`.
+- **Base checkpoint:** `distilbert-base-uncased` (66.4 M parameters, 6 layers, hidden size 768). It is a base checkpoint with no SQuAD fine-tuning; we checked on the Hub that it does not carry the `squad` tag.
+- **Alternatives considered:** `bert-base-uncased` (108.9 M parameters, 235 ms per question on CPU), `roberta-base` (124.1 M, 229 ms), `deberta-v3-base` (183.8 M, 387 ms) and `ModernBERT-base` (149.6 M, 317 ms), all measured in Phase 1 (`docs/fase1_datos_y_modelo.md`). We rejected them: with a 5 s timeout, the tunnel latency and a 150 s global cap for 50 items, a 12-layer encoder leaves little margin. We also rejected `distilbert-base-uncased-distilled-squad` because it is already trained on SQuAD, which the guide forbids.
+- **Trade-off:** we give up some quality compared with the 12-layer models. In return, a short question takes 55–70 ms on CPU and the model weighs 265 MB.
+- **Adaptation:** LoRA of rank 16 on the four attention matrices of every block, with the QA head trained in full. That is 591,362 trainable parameters (0.88 %). After training the adapters are merged, so the API loads a plain model without `peft`.
 
 ## 2. Training
 
 | Item | Value |
 |---|---|
-| Training data | SQuAD 2.0 `train` completo: 130 319 preguntas (131 754 ventanas) |
-| Validation data | `dev_select`: 5 917 preguntas de SQuAD 2.0 `validation`, separadas por artículo. `dev_report` (5 956) no se usó para ninguna cifra de este reporte. |
-| Epochs | Tope de 8 con parada temprana (paciencia 2). Paró después de la época 5. El servicio sirve la época 5. |
-| Learning rate and schedule | 2e-4, calendario lineal con 6 % de calentamiento |
+| Training data | Full SQuAD 2.0 `train`: 130,319 questions (131,754 windows) |
+| Validation data | `dev_select`: 5,917 questions from the SQuAD 2.0 `validation` split, divided by article. `dev_report` (5,956) was not used for any number in this report. |
+| Epochs | Cap of 8 with early stopping (patience 2). The run stopped after epoch 5, and the service serves epoch 5. |
+| Learning rate and schedule | 2e-4, linear schedule with 6 % warmup |
 | Batch size | 32 |
 | `max_seq_length` / `doc_stride` | 384 / 128 |
-| Hardware and training time | RTX 4050 Laptop (6 GB). 6 529 s (≈ 1 h 49 min) hasta la época 5. |
+| Hardware and training time | RTX 4050 Laptop (6 GB). 6,529 s (≈ 1 h 49 min) up to epoch 5. |
 
-- **Loss curve:** `logs/runs/r16_es/train_log.jsonl` (pérdida por paso). Todavía no hay imagen `logs/loss.png`; la generaremos antes de la entrega.
-- **Validation results (`dev_select`, época 5, τ = 0):** EM 66.17, F1 68.78, HasAns F1 64.72, NoAns accuracy 72.57. Con el τ candidato de la sección 3 (−2), el puntaje con la escala de la guía, reponderado a 25 % sin respuesta, es 0.697. Es un proxy calculado sobre el mismo conjunto que usamos para elegir, así que está inflado.
+- **Loss curve:** `logs/runs/r16_es/train_log.jsonl` (loss per step). There is no `logs/loss.png` image yet; we will generate it before submission.
+- **Validation results (`dev_select`, epoch 5, τ = 0):** EM 66.17, F1 68.78, HasAns F1 64.72, NoAns accuracy 72.57. With the candidate τ from Section 3 (−2), the score on the guide's scale, reweighted to 25 % unanswerable, is 0.697. This is a proxy computed on the same set we used to choose, so it is inflated.
 
 ## 3. No-answer threshold
 
-- **Scores compared:** el puntaje nulo es `start[CLS] + end[CLS]`, tomado como el mínimo entre ventanas. El puntaje del span es el mejor par de inicio y fin válido (top-20 por lado, longitud máxima 30 tokens) entre todas las ventanas. Respondemos el span si `mejor_span − nulo > τ` (regla de BERT §4.3). Si no, devolvemos `null`.
-- **How we chose the value:** barrimos τ sobre `dev_select` época por época (`scripts/sweep_tau.py`, `scripts/item_score.py`) y reponderamos a 25 % sin respuesta, la proporción esperada en el set oculto. Para la época 5 el mejor τ es −2 (puntaje 0.697), y con τ = −2 el puntaje se mantiene igual en las épocas finales, así que el valor es estable.
-- **Final value:** **pendiente**. El código usa `QA_TAU=0.0` por defecto hasta que el equipo fije el valor. Hay que fijarlo antes de servir.
-- **Too low or too high:** con τ muy bajo el modelo responde casi todo y la precisión en preguntas sin respuesta cae. Con τ muy alto devuelve `null` con demasiada frecuencia y pierde respuestas válidas (HasAns F1 baja).
+- **Scores compared:** the null score is `start[CLS] + end[CLS]`, taking the minimum across windows. The span score is the best valid start/end pair (top 20 per side, maximum length 30 tokens) across all windows. We answer with the span if `best_span − null > τ` (BERT §4.3 rule); otherwise we return `null`.
+- **How we chose the value:** we swept τ on `dev_select` epoch by epoch (`scripts/sweep_tau.py`, `scripts/item_score.py`) and reweighted to 25 % unanswerable, the proportion expected in the hidden set. For epoch 5 the best τ is −2 (score 0.697), and with τ = −2 the score stays the same across the final epochs, so the value is stable.
+- **Final value:** **pending**. The code defaults to `QA_TAU=0.0` until the team fixes the value once the final model is trained. It must be set before serving.
+- **Too low or too high:** with a very low τ the model answers almost everything and accuracy on unanswerable questions drops. With a very high τ it returns `null` too often and loses valid answers (HasAns F1 falls).
 
 ## 4. Serving architecture
 
-- **Framework and server:** FastAPI con uvicorn, **1 worker**. El modelo vive en un solo proceso.
-- **Model loading:** en un hilo al arrancar (*lifespan*). Mientras carga, `/health` responde 503 `loading`. Si `QA_API_TOKEN` falta, el arranque falla.
-- **Request flow:** primero se valida el token. Después se parsea el JSON y se valida contra el esquema del contrato (límites de longitud y campos extra). Luego `ValidationFeatures` parte la pregunta y el contexto en ventanas de 384 tokens con solapamiento de 128. Un solo pase del modelo sobre el lote de ventanas, en CPU y bajo un lock. `predict_example` aplica τ y recorta el texto del contexto con los offsets. Un `assert` garantiza `context[start:start+len] == answer`.
-- **Access control:** `Authorization: Bearer` se compara con `hmac.compare_digest`. El esquema y el token distinguen mayúsculas. Sin token válido siempre hay 401, aunque el cuerpo esté roto. El valor viene de `QA_API_TOKEN`, nunca del código; `.env` está en `.gitignore`.
-- **Tunnel:** ngrok 3.3.1 (instalado con winget). Pendiente: cuenta de ngrok y authtoken del equipo, y el comando `ngrok http 8000`. Sin cuenta no hay túnel en el plan gratuito.
+- **Framework and server:** FastAPI with uvicorn, **1 worker**. The model lives in a single process.
+- **Model loading:** in a background thread at startup (*lifespan*). While it loads, `/health` answers 503 `loading`. If `QA_API_TOKEN` is missing, startup fails.
+- **Request flow:** the token is checked first. Then the JSON is parsed and validated against the contract schema (length limits and extra fields). Next, `ValidationFeatures` splits the question and context into 384-token windows with a 128-token overlap, so long contexts are covered by several windows. One model pass over the batch of windows, on CPU and under a lock. `predict_example` applies τ and cuts the text out of the context using the offsets. An `assert` guarantees `context[start:start+len] == answer`.
+- **Access control:** `Authorization: Bearer` is compared with `hmac.compare_digest`. Both the scheme and the token are case-sensitive. Without a valid token the answer is always 401, even if the body is broken. The value comes from `QA_API_TOKEN`, never from the code; `.env` is in `.gitignore`.
+- **Tunnel:** ngrok (agent installed with winget). Pending: update the agent (the account requires 3.28.0 or newer), start it with `ngrok http 8000`, and test it from another network.
 - **How to run** from a clean machine:
 
 ```bash
 pip install -r requirements.txt
-# Copia la carpeta models/ (no está en git) o apunta QA_MODEL_DIR a ella.
+# Copy the models/ folder (not in git) or point QA_MODEL_DIR at it.
 export QA_API_TOKEN=...            # PowerShell: $env:QA_API_TOKEN="..."
 export QA_MODEL_DIR=models/r16_es/merged_epoch5
-export QA_TAU=...                  # pendiente de fijar con dev_select
+export QA_TAU=...                  # pending: set once the final model is trained
 uvicorn service.app:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
@@ -68,38 +68,38 @@ uvicorn service.app:app --host 0.0.0.0 --port 8000 --workers 1
 | sample-04 | `null` | `3` | 310 | no |
 | sample-05 | `50,257` | `50,257` | 3157 | yes |
 
-sample-04 falla en un caso cercano: el contexto dice "3 times" sobre GPT-3, pero la pregunta pregunta por BERT-base. El modelo empareja el tipo de cantidad y no ve que el sujeto cambió. Cinco ítems no dan significancia estadística. Esta cifra solo sirve como prueba de sanidad.
+sample-04 fails on a near miss: the context says "3 times" about GPT-3, but the question asks about BERT-base. The model matches the type of quantity and does not notice that the subject changed. Five items are not statistically significant; this figure is only a sanity check.
 
 ## 6. Model size and latency (not graded)
 
 | Item | Value |
 |---|---|
-| Parameters | 66 364 418 (modelo fusionado; `/info` lo reporta) |
+| Parameters | 66,364,418 (merged model; `/info` reports it) |
 | Size on disk | 265 MB (`model.safetensors`, fp32) |
-| Mean latency per `/predict` request on our laptop (CPU) | 55–70 ms para contextos de ≈ 450 caracteres; 466 ms para el contexto de 3 171 caracteres (varias ventanas). Medido con `scripts/bench_predict.py`, con otra sesión de entrenamiento corriendo en el mismo equipo. |
-| HTTP smoke test (localhost, sin túnel) | 50 peticiones secuenciales en 7.3 s, la más lenta 488 ms, 0 fallas (`scripts/smoke_test.py`) |
-| Laptop CPU and RAM | Intel Core i7-12650H (10 núcleos, 16 hilos), 16 GB de RAM |
+| Mean latency per `/predict` request on our laptop (CPU) | 55–70 ms for contexts of ≈ 450 characters; 466 ms for the 3,171-character context (several windows). Measured with `scripts/bench_predict.py` while another training session was running on the same machine. |
+| HTTP smoke test (localhost, no tunnel) | 50 sequential requests in 7.3 s, slowest 488 ms, 0 failures (`scripts/smoke_test.py`) |
+| Laptop CPU and RAM | Intel Core i7-12650H (10 cores, 16 threads), 16 GB RAM |
 
 ## 7. Problems encountered and how you fixed them
 
-1. **Problem:** la parada temprana con τ = 0 no era confiable. El HasAns F1 de la corrida r16 oscilaba entre 53 y 70 entre épocas. **Cause:** el umbral τ = 0 se desplaza en cada época, así que el puntaje cambia por el umbral y no por el modelo. **Fix:** elegir con el puntaje de la escala de la guía reponderado a 25 % sin respuesta, y barrer τ por época. **Commit:** `9fb7163` (parada temprana y selección) y `909035a` (puntaje por ítem).
-2. **Problem:** `predict_example` devuelve un margen para los spans y el logit nulo crudo para `null`, pero el contrato exige `score` entre 0 y 1. **Cause:** las dos ramas usan escalas distintas. **Fix:** mapear con sigmoide en `service/qa.py`. Sigue sin ser un valor calibrado. **Commit:** `498992e`.
-3. **Problem:** en un worktree sin `models/`, las pruebas con el modelo real se saltaban en silencio. **Cause:** los pesos no están en git. **Fix:** `QA_MODEL_DIR` y un motivo visible en el `skip`. **Commit:** `0a391e2`.
+1. **Problem:** early stopping with τ = 0 was not reliable. HasAns F1 in the r16 run bounced between 53 and 70 from one epoch to the next. **Cause:** the τ = 0 threshold shifts with every epoch, so the score changes because of the threshold and not because of the model. **Fix:** select with the guide-scale score reweighted to 25 % unanswerable, and sweep τ per epoch. **Commit:** `9fb7163` (early stopping and selection) and `909035a` (per-item score).
+2. **Problem:** `predict_example` returns a logit margin for spans but the raw null logit for `null`, while the contract requires a `score` between 0 and 1. **Cause:** the two branches use different scales. **Fix:** map it with a sigmoid in `service/qa.py`. It is still not a calibrated value. **Commit:** `498992e`.
+3. **Problem:** in a worktree without `models/`, the tests that use the real model were silently skipped. **Cause:** the weights are not in git. **Fix:** the `QA_MODEL_DIR` variable and a visible reason in the `skip`. **Commit:** `0a391e2`.
 
 ## 8. Decoder investigation
 
-Dos problemas nuestros, medidos en el set público, motivan la pregunta:
+Two problems of ours, measured on the public sample set, motivate the question:
 
-- **sample-04:** el modelo extractivo devuelve un span para una pregunta sin respuesta. Un decoder entrenado para responder `null` con texto podría decir "no answer" directamente, pero la evaluación exige una coincidencia exacta del span. Un decoder que parafrasea rompe la regla `context[start:start+len] == answer`, así que tendríamos que validar cada salida contra el contexto.
-- **Preguntas largas:** nuestro contexto de 3 171 caracteres usa varias ventanas. Un decoder con contexto largo tendría costo de atención mayor en CPU.
+- **sample-04:** the extractive model returns a span for an unanswerable question. A decoder trained to answer "no answer" in text could say so directly, but the evaluation requires an exact span match. A decoder that paraphrases breaks the rule `context[start:start+len] == answer`, so we would have to validate every output against the context.
+- **Long contexts:** our 3,171-character context uses several windows. A decoder reading a long context would pay a higher attention cost on CPU.
 
-El costo de un decoder en CPU y su latencia real no están medidos todavía. Eso queda para la Fase 8.
+The cost of a decoder on CPU and its real latency have not been measured yet. That is left for Phase 8.
 
 ## 9. Known limitations
 
-- **Threshold:** τ no está fijado. El valor por defecto `0.0` no es el valor calibrado.
-- **Score:** no está calibrado. Para `null` es el logit nulo pasado por una sigmoide, así que no es comparable con el de un span.
-- **Concurrency:** un solo worker y un lock. Las peticiones se encolan; con un contexto de 5 000 caracteres la latencia sigue muy por debajo de 5 s, pero una cola larga sí puede pasar el límite.
-- **Input:** solo inglés. No validamos idioma, y el texto fuera de la distribución de SQuAD no lo medimos.
-- **Auth:** un único token compartido, sin rotación ni límite de peticiones.
-- **Evaluation:** `dev_report` no se evaluó en este reporte. Esa evaluación única la decide el equipo.
+- **Threshold:** τ is not fixed yet. The default `0.0` is not the calibrated value.
+- **Score:** not calibrated. For `null` it is the null logit passed through a sigmoid, so it is not comparable with the score of a span.
+- **Concurrency:** one worker and one lock. Requests queue up; with a 5,000-character context latency stays far below 5 s, but a long queue can exceed the limit.
+- **Input:** English only. We do not check the language, and we have not measured text outside the SQuAD distribution.
+- **Auth:** a single shared token, with no rotation or rate limiting.
+- **Evaluation:** `dev_report` was not evaluated for this report. That single evaluation is decided by the team.
