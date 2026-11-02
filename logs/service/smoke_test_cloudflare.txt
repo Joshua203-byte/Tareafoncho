@@ -1,0 +1,29 @@
+commit_codigo: 1751f01
+fecha: 2026-11-02T04:55:47Z
+modelo: models/full_ft_4ep/epoch_3, tau: -2.0 (por defecto)
+túnel: Cloudflare Quick Tunnel (cloudflared 2026.10.7), dominio aleatorio *.trycloudflare.com (URL omitida a propósito)
+equipo: Intel Core i7-12650H, 16 GB RAM; servicio, túnel y cliente en el mismo laptop
+comandos: los 5 curl de la guía y python scripts/smoke_test.py --base-url <url-publica> --n 50
+
+1 /health sin token
+HTTP/1.1 200 OK
+{"status":"ok"}
+2 /info sin token
+HTTP/1.1 401 Unauthorized
+{"error":"unauthorized"}
+3 /info token malo
+HTTP/1.1 401 Unauthorized
+{"error":"unauthorized"}
+4 /info token válido
+HTTP/1.1 200 OK
+{"team":"Fonchos","model":"distilbert-base-uncased","params":66364418,"max_seq_length":384,"doc_stride":128}
+5 /predict válido (sample-02)
+HTTP/1.1 200 OK
+{"id":"sample-02","answer":"3.5 days","start":437,"score":0.9991}
+--- smoke test
+/health -> 200 {"status":"ok"}
+/info   -> 200 {"team":"Fonchos","model":"distilbert-base-uncased","params":66364418,"max_seq_length":384,"doc_stride":128}
+/info sin token -> 401 (debe ser 401)
+
+50 peticiones en 13.9 s (tope 150 s), la más lenta 608 ms, fallas 0
+RESULTADO: OK

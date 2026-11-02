@@ -1,0 +1,52 @@
+commit_codigo: 1751f01
+fecha: 2026-11-02T04:55:47Z
+modelo: models/full_ft_4ep/epoch_3, tau: -2.0 (por defecto)
+túnel: Cloudflare Quick Tunnel (cloudflared 2026.10.7), dominio aleatorio *.trycloudflare.com (URL omitida a propósito)
+equipo: Intel Core i7-12650H, 16 GB RAM; servicio, túnel y cliente en el mismo laptop
+comando: python scripts/robustness_check.py <url-publica>
+
+[OK] User-Agent de navegador: 563 ms answer='1024 and 16'
+[OK] User-Agent python-requests: 542 ms answer='1024 and 16'
+[OK] Content-Type text/plain: 546 ms answer='1024 and 16'
+[OK] sin Content-Type 200
+[OK] unicode 0: 600 ms answer='São Paulo'
+[OK] unicode 1: 640 ms answer='250'
+[OK] unicode 2: 607 ms answer='Zoë Álvarez-Ñandú'
+[OK] unicode 3: 688 ms answer=None
+[OK] pregunta unicode: 490 ms answer=None
+[OK] contexto 5000 car.: 919 ms answer=None
+[OK] pregunta 500 car.: 569 ms answer=None
+[OK] contexto 5000 de una palabra: 645 ms answer=None
+[OK] contexto 5000 sin espacios raros (guiones): 1589 ms answer=None
+[OK] contexto de 1 car.: 588 ms answer=None
+[OK] contexto solo espacios: 670 ms answer=None
+[OK] contexto solo saltos: 510 ms answer=None
+[OK] pregunta de 1 car.: 559 ms answer='Bidirectional Encoder Representations from Transformers'
+[OK] contexto con solo puntuación: 502 ms answer=None
+[OK] pregunta vacía de sentido: 765 ms answer='BERT-large'
+[OK] id de 64 car.: 536 ms answer='1024 and 16'
+[OK] id con comillas y barra: 566 ms answer='1024 and 16'
+[OK] público sample-01: 697 ms answer='1024 and 16'
+[OK] público sample-02: 867 ms answer='3.5 days'
+[OK] público sample-03: 747 ms answer=None
+[OK] público sample-04: 651 ms answer='3'
+[OK] público sample-05: 898 ms answer='50,257'
+[OK] paralelo 3: 879 ms answer='3'
+[OK] paralelo 1: 976 ms answer='3.5 days'
+[OK] paralelo 6: 1029 ms answer='3.5 days'
+[OK] paralelo 0: 1094 ms answer='1024 and 16'
+[OK] paralelo 5: 1178 ms answer='1024 and 16'
+[OK] paralelo 4: 1581 ms answer='50,257'
+[OK] paralelo 7: 1666 ms answer=None
+[OK] paralelo 2: 1701 ms answer=None
+[OK] paralelo 8: 924 ms answer='3'
+[OK] paralelo 11: 892 ms answer='3.5 days'
+[OK] paralelo 10: 1072 ms answer='1024 and 16'
+[OK] paralelo 9: 1470 ms answer='50,257'
+[OK] paralelo 12: 1302 ms answer=None
+[OK] paralelo 13: 1022 ms answer='3'
+[OK] paralelo 14: 1304 ms answer='50,257'
+[OK] paralelo 15: 1302 ms answer='1024 and 16'
+
+42/42 correctas
+exit=0
