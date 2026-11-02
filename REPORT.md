@@ -13,7 +13,7 @@
 
 ## 1. Model choice and justification
 
-- **Base checkpoint:** `distilbert-base-uncased` (66.4 M parameters, 6 layers, hidden size 768), with no SQuAD fine-tuning (we checked the Hub).
+- **Base checkpoint:** `distilbert-base-uncased` ([Sanh et al., 2019](https://arxiv.org/abs/1910.01108); 66.4 M parameters, 6 layers, hidden size 768), with no SQuAD fine-tuning (we checked the Hub).
 - **Alternatives considered:** `bert-base-uncased` (108.9 M parameters, 235 ms per question on CPU), `roberta-base` (124.1 M, 229 ms), `deberta-v3-base` (183.8 M, 387 ms), `ModernBERT-base` (149.6 M, 317 ms), against 110 ms for DistilBERT in the same benchmark (`logs/model_benchmark.json`). With a 5 s timeout, tunnel latency and a 150 s cap for 50 items, a 12-layer encoder leaves little margin for a modest quality gain.
 - **Trade-off:** a lower quality ceiling in exchange for about 40 ms per short question on CPU and a 265 MB model.
 - **Adaptation:** full fine-tuning (all 66,364,418 parameters). LoRA (rank 16) was our control and scored 0.697 on the selection metric against 0.721.
@@ -32,6 +32,7 @@
 
 ![Training loss](logs/loss.png)
 
+- **Where the hyperparameters come from:** the source papers, not a search of our own (no learning-rate sweep was run). Learning rate 3e-5, batch size 32 and 2–4 epochs lie inside the fine-tuning grid of [BERT](https://arxiv.org/abs/1810.04805) (App. A.3: lr {2e-5, 3e-5, 5e-5}, batch {16, 32}, epochs {2, 3, 4}). The 384/128 window is the setting of the [Hugging Face QA course](https://huggingface.co/learn/llm-course/chapter7/7). The 6 % warmup is a heuristic: BERT gives none for fine-tuning and [LoRA](https://arxiv.org/abs/2106.09685) uses 0.06. The LoRA control follows its §7.1 (low rank spread over the four attention matrices), and its lr 2e-4 is extrapolated from LoRA's GLUE settings. The epoch was chosen on validation, not taken from a paper.
 - **Loss curve:** `logs/loss.png`, drawn by `scripts/plot_training.py` from `logs/runs/*/train_log.jsonl`. The loss falls at each epoch boundary, a sign that the model starts to memorise the training set, so we pick the epoch by validation, not by loss.
 - **Validation results:**
 
@@ -44,7 +45,7 @@ Epoch 4 has higher EM and F1 but a lower guide-scale score (0.709): it handles u
 
 ## 3. No-answer threshold
 
-- **Decision rule:** the null score is `start[CLS] + end[CLS]` (minimum over windows); the span score is the best valid start/end pair over all windows. We answer with the span if `best span − null > τ`, otherwise `null` (BERT §4.3).
+- **Decision rule:** the null score is `start[CLS] + end[CLS]` (minimum over windows); the span score is the best valid start/end pair over all windows. We answer with the span if `best span − null > τ`, otherwise `null` ([BERT](https://arxiv.org/abs/1810.04805) §4.3).
 - **Choosing τ:** we swept τ on `dev_select`, reweighted to 25 % unanswerable (the hidden-set share; `dev_select` has 48 %). The best value is **τ = −2**, on a plateau between −4 and −0.5, and it is the service default (`QA_TAU`).
 
 ![Threshold sweep](logs/tau_sweep.png)
@@ -101,15 +102,15 @@ Both errors are the model's, not the service's: the same model run outside the s
 
 ## 8. Decoder investigation
 
-A decoder-only model (GPT-1: 117 M parameters, 512-token context; Radford et al., 2018) or an encoder–decoder (e.g. T5) generates the answer as text instead of picking a span. We tie it to three problems measured on our model; the cost estimates are orders of magnitude, not measurements.
+A decoder-only model (GPT-1: 117 M parameters, 512-token context; [Radford et al., 2018](https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf)) or an encoder–decoder (e.g. T5, [Raffel et al., 2020](https://arxiv.org/abs/1910.10683)) generates the answer as text instead of picking a span. We tie it to three problems measured on our model; the cost estimates are orders of magnitude, not measurements.
 
-**1. Near-miss unanswerable questions (sample-04; only 57.8 % accuracy on unanswerable questions in `dev_report`, our weakest result).** SQuAD 2.0 unanswerable questions are written to resemble answerable ones (Rajpurkar et al., 2018). We compare two scalar scores at `[CLS]`; a generative model reads the whole question and can output "unanswerable", so it could notice that BERT-base is not GPT-3. *Cost:* 1.8× the parameters (GPT-1) to 3.3× (T5-base, 220 M); full fine-tuning of larger models does not fit in 6 GB of VRAM, so LoRA, which lost 2.4 points in our control; and we lose τ (worth 9 points) and must rebuild it from sequence probabilities.
+**1. Near-miss unanswerable questions (sample-04; only 57.8 % accuracy on unanswerable questions in `dev_report`, our weakest result).** SQuAD 2.0 unanswerable questions are written to resemble answerable ones ([Rajpurkar et al., 2018](https://arxiv.org/abs/1806.03822)). We compare two scalar scores at `[CLS]`; a generative model reads the whole question and can output "unanswerable", so it could notice that BERT-base is not GPT-3. *Cost:* 1.8× the parameters (GPT-1) to 3.3× (T5-base, 220 M); full fine-tuning of larger models does not fit in 6 GB of VRAM, so LoRA, which lost 2.4 points in our control; and we lose τ (worth 9 points) and must rebuild it from sequence probabilities.
 
 **2. A wrong span boundary (sample-01, "1024 and 16").** Start and end come from independent logits, so an incoherent pair can win; a decoder conditions each token on the previous ones. *Cost:* the contract needs `context[start:start+len] == answer`, but generation can paraphrase ("16 heads"), so we need constrained decoding or a fallback to `null`, and `start` must be found by text search, which is ambiguous if the string repeats.
 
-**3. Long contexts (3 windows: 330 ms against about 40 ms for one).** Windows need a merge rule; a longer-context decoder reads the paragraph once. *Cost:* GPT-1's 512 tokens cannot hold sample-05 (665 tokens) either, and GPT-2's 1,024 is borderline for 5,000 characters. Compute per token is about 2× ours (85 M against 43 M non-embedding parameters) plus one pass per generated token: about 0.5 s for a short answer, but models with long context have billions of parameters, against a 5 s limit on a laptop CPU.
+**3. Long contexts (3 windows: 330 ms against about 40 ms for one).** Windows need a merge rule; a longer-context decoder reads the paragraph once. *Cost:* GPT-1's 512 tokens cannot hold sample-05 (665 tokens) either, and GPT-2's 1,024 ([Radford et al., 2019](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)) is borderline for 5,000 characters. Compute per token is about 2× ours (85 M against 43 M non-embedding parameters) plus one pass per generated token: about 0.5 s for a short answer, but models with long context have billions of parameters, against a 5 s limit on a laptop CPU.
 
-References: Radford et al. (2018), GPT-1; Rajpurkar et al. (2018), SQuAD 2.0; Devlin et al. (2019) §4.3; Hu et al. (2021), LoRA.
+References: [Radford et al. (2018)](https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf), GPT-1; [Radford et al. (2019)](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf), GPT-2; [Raffel et al. (2020)](https://arxiv.org/abs/1910.10683), T5; [Rajpurkar et al. (2018)](https://arxiv.org/abs/1806.03822), SQuAD 2.0; [Devlin et al. (2019)](https://arxiv.org/abs/1810.04805), BERT §4.3 and A.3; [Hu et al. (2021)](https://arxiv.org/abs/2106.09685), LoRA §7.1; [Sanh et al. (2019)](https://arxiv.org/abs/1910.01108), DistilBERT.
 
 ## 9. Known limitations
 
