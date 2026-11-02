@@ -17,3 +17,6 @@ uvicorn==0.54.0
 # Pruebas
 pytest==9.2.0
 httpx==0.28.1
+
+# Gráficas del reporte (scripts/plot_training.py)
+matplotlib==3.11.2
