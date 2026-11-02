@@ -46,7 +46,7 @@
 - **Model loading:** en un hilo al arrancar (*lifespan*). Mientras carga, `/health` responde 503 `loading`. Si `QA_API_TOKEN` falta, el arranque falla.
 - **Request flow:** primero se valida el token. Después se parsea el JSON y se valida contra el esquema del contrato (límites de longitud y campos extra). Luego `ValidationFeatures` parte la pregunta y el contexto en ventanas de 384 tokens con solapamiento de 128. Un solo pase del modelo sobre el lote de ventanas, en CPU y bajo un lock. `predict_example` aplica τ y recorta el texto del contexto con los offsets. Un `assert` garantiza `context[start:start+len] == answer`.
 - **Access control:** `Authorization: Bearer` se compara con `hmac.compare_digest`. El esquema y el token distinguen mayúsculas. Sin token válido siempre hay 401, aunque el cuerpo esté roto. El valor viene de `QA_API_TOKEN`, nunca del código; `.env` está en `.gitignore`.
-- **Tunnel:** pendiente de elegir y de instalar (Fase 6).
+- **Tunnel:** ngrok 3.3.1 (instalado con winget). Pendiente: cuenta de ngrok y authtoken del equipo, y el comando `ngrok http 8000`. Sin cuenta no hay túnel en el plan gratuito.
 - **How to run** from a clean machine:
 
 ```bash
