@@ -151,8 +151,23 @@ Cada corrida guarda:
 
 Usamos `Trainer`, con documentación en el código: una sección por bloque (configuración, datos, métricas, entrenamiento, guardado), un docstring por función y una tabla que relaciona cada argumento de `TrainingArguments` con lo que hace por debajo.
 
-## 9. Decisiones pendientes
+## 9. Decisiones tomadas
 
-- **Learning rate final**: se elige en el sweep del piloto.
-- **Rango final de LoRA**: se elige con `r = 8, 16, 64` contra el control de fine-tuning completo.
-- **Dependencia nueva**: `peft`, que se agrega a `requirements.txt` con versión fijada.
+- **Learning rate**: 2e-4 con LoRA y 3e-5 con fine-tuning completo. El sweep del piloto no se hizo: el tiempo lo dejó fuera, y se usó la referencia de la sección 4.
+- **Rango de LoRA**: r = 8 y r = 16 a los mismos pasos. r = 16 mejora sobre r = 8 (≈ 2.6 puntos del proxy). No se corrió r = 64: ya no había tiempo, y la comparación entre r = 8 y r = 16 mostró que la extracción casi no cambia con el rango.
+- **Control con fine-tuning completo**: supera a LoRA (0.721 contra 0.697, en el proxy sobre `dev_select`). Por eso el modelo final es de fine-tuning completo.
+- **Épocas**: 3. La curva se aplana alrededor de 0.72 entre la época 3 y la 4. Se elige la época 3 por ser la mejor con el mismo τ que las demás.
+- **Dependencia nueva**: `peft`, fijado en `requirements.txt`.
+
+## 10. Resultados finales de la fase 3
+
+Modelo elegido: `full_ft_4ep`, época 3, fine-tuning completo, τ = −2. Detalle de cada corrida en [`docs/experimentos_fase3.md`](experimentos_fase3.md).
+
+| Conjunto | EM | F1 | HasAns F1 | NoAns acc | Proxy de la guía (reponderado) |
+|---|---|---|---|---|---|
+| `dev_select` (selección) | 61.53 (época 2) | 65.10 (época 2) | 79.17 (época 2) | 51.95 (época 2) | 0.721 |
+| `dev_report` (una sola vez) | 62.56 | 66.27 | 74.20 | 57.83 | 0.694 |
+
+El proxy de la guía usa una regla para el crédito parcial, no el juez LLM, así que no es la nota real. Ver [`docs/fase4_umbral_y_evaluacion.md`](fase4_umbral_y_evaluacion.md) para la calibración de τ y la limitación.
+
+**Lo que no se hizo**: el sweep de learning rate del piloto, la corrida con r = 64 y la comparación con un encoder más grande. Quedan como trabajo futuro, con el tiempo como razón.
