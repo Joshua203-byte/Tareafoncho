@@ -1,0 +1,51 @@
+commit_codigo: c7fde00
+fecha: 2026-11-02T04:43:47Z
+comando: python scripts/robustness_check.py <url-publica>   (túnel ngrok, mismo laptop)
+
+C:\Users\diego\Documents\GitHub\Tareafoncho\.claude\worktrees\fase-5-api-47ae59\scripts\robustness_check.py:70: SyntaxWarning: invalid escape sequence '\c'
+  res.append(check("id con comillas y barra", {"id": 'a"b\c/d', "context": sample[0]["context"], "question": q}))
+[OK] User-Agent de navegador: 746 ms answer='1024 and 16'
+[OK] User-Agent python-requests: 775 ms answer='1024 and 16'
+[OK] Content-Type text/plain: 696 ms answer='1024 and 16'
+[OK] sin Content-Type 200
+[OK] unicode 0: 651 ms answer='São Paulo'
+[OK] unicode 1: 708 ms answer='250'
+[OK] unicode 2: 654 ms answer='Zoë Álvarez-Ñandú'
+[OK] unicode 3: 648 ms answer=None
+[OK] pregunta unicode: 684 ms answer=None
+[OK] contexto 5000 car.: 1140 ms answer=None
+[OK] pregunta 500 car.: 702 ms answer=None
+[OK] contexto 5000 de una palabra: 743 ms answer=None
+[OK] contexto 5000 sin espacios raros (guiones): 1610 ms answer=None
+[OK] contexto de 1 car.: 820 ms answer=None
+[OK] contexto solo espacios: 1725 ms answer=None
+[OK] contexto solo saltos: 1237 ms answer=None
+[OK] pregunta de 1 car.: 835 ms answer='Bidirectional Encoder Representations from Transformers'
+[OK] contexto con solo puntuación: 680 ms answer=None
+[OK] pregunta vacía de sentido: 648 ms answer='BERT-large'
+[OK] id de 64 car.: 661 ms answer='1024 and 16'
+[OK] id con comillas y barra: 738 ms answer='1024 and 16'
+[OK] público sample-01: 772 ms answer='1024 and 16'
+[OK] público sample-02: 726 ms answer='3.5 days'
+[OK] público sample-03: 661 ms answer=None
+[OK] público sample-04: 694 ms answer='3'
+[OK] público sample-05: 1125 ms answer='50,257'
+[OK] paralelo 1: 1012 ms answer='3.5 days'
+[OK] paralelo 3: 1085 ms answer='3'
+[OK] paralelo 0: 1160 ms answer='1024 and 16'
+[OK] paralelo 4: 1540 ms answer='50,257'
+[OK] paralelo 7: 1625 ms answer=None
+[OK] paralelo 6: 1683 ms answer='3.5 days'
+[OK] paralelo 5: 1700 ms answer='1024 and 16'
+[OK] paralelo 2: 1787 ms answer=None
+[OK] paralelo 8: 1009 ms answer='3'
+[OK] paralelo 10: 1033 ms answer='1024 and 16'
+[OK] paralelo 9: 1520 ms answer='50,257'
+[OK] paralelo 11: 1101 ms answer='3.5 days'
+[OK] paralelo 12: 1200 ms answer=None
+[OK] paralelo 14: 1440 ms answer='50,257'
+[OK] paralelo 13: 1519 ms answer='3'
+[OK] paralelo 15: 1441 ms answer='1024 and 16'
+
+42/42 correctas
+exit=0
