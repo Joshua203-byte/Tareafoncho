@@ -77,8 +77,8 @@ sample-01 asks how many attention heads BERT-large has, and the model returns th
 |---|---|
 | Parameters | 66,364,418 (merged model; `/info` reports it) |
 | Size on disk | 265 MB (`model.safetensors`, fp32) |
-| Mean latency per `/predict` request on our laptop (CPU) | 49–56 ms for contexts of ≈ 450 characters; 384 ms for the 3,171-character context (several windows). Measured with `scripts/bench_predict.py` while another training session was running on the same machine. |
-| HTTP smoke test (localhost, no tunnel) | 50 sequential requests in 6.4 s, slowest 417 ms, 0 failures (`scripts/smoke_test.py`) |
+| Mean latency per `/predict` request on our laptop (CPU) | 37–41 ms for contexts of ≈ 450 characters; 330 ms for the 3,171-character context (several windows). Measured with `scripts/bench_predict.py` (`logs/service/bench_predict.txt`); the timings move by about 20 % between runs. |
+| HTTP smoke test (localhost, no tunnel) | 50 sequential requests in 5.9 s, slowest 400 ms, 0 failures (`scripts/smoke_test.py`, `logs/service/smoke_test_local.txt`) |
 | Laptop CPU and RAM | Intel Core i7-12650H (10 cores, 16 threads), 16 GB RAM |
 
 ## 7. Problems encountered and how you fixed them

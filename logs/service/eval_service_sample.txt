@@ -1,0 +1,15 @@
+commit_codigo: 6dc3226
+fecha: 2026-11-02T04:07:50Z
+modelo: models/full_ft_4ep/epoch_3 (fine-tuning completo, época 3)  tokenizer: models/full_ft_4ep/merged
+tau: -2.0 (por defecto)
+versiones: torch 2.11.0+cu128 transformers 5.22.1 fastapi 0.162.0 pydantic 2.14.2
+equipo: Intel Core i7-12650H (10 núcleos, 16 hilos), 16 GB RAM; inferencia en CPU
+comando: python scripts/eval_service_sample.py --n 1000 --seed 7   (solo dev_select)
+
+preguntas: 1000, sin respuesta: 250
+servicio vs referencia: 0 diferencias de 1000 | offsets/null inválidos: 0
+latencia por pregunta: media 71 ms, p95 112 ms, máx 405 ms
+HasAns 0.745 (solo exactas 0.685) | NoAns 0.580
+puntaje reponderado a 25 % sin respuesta: 0.704
+sets de 50: puntaje medio 0.705, desv 0.059, p5 0.600, p95 0.800
+puntos de 60: media 57.2, p5 46.7, p95 60.0
