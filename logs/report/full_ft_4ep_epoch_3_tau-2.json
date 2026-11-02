@@ -1,0 +1,18 @@
+{
+  "run_name": "full_ft_4ep",
+  "checkpoint": "epoch_3",
+  "tau": -2.0,
+  "split": "dev_report",
+  "questions": 5956,
+  "n": 5956,
+  "EM": 62.56,
+  "F1": 66.27,
+  "HasAns_n": 3070,
+  "HasAns_EM": 67.0,
+  "HasAns_F1": 74.2,
+  "NoAns_n": 2886,
+  "NoAns_acc": 57.83,
+  "guide_raw": 0.6578,
+  "guide_reweighted": 0.694,
+  "guide_exact_reweighted": 0.6471
+}

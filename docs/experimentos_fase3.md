@@ -22,6 +22,24 @@ Métricas que reportamos en cada entrada: **EM y F1 globales**, **HasAns F1** (c
 
 ---
 
+## Evaluación final sobre dev_report (única)
+
+**Modelo y τ fijados antes de evaluar:** `models/full_ft_4ep/epoch_3`, τ = −2. Se corrió una sola vez con `scripts/eval_report.py`, que no sobrescribe. Resultado en `logs/report/full_ft_4ep_epoch_3_tau-2.json`.
+
+| Métrica | dev_report (5 956 preguntas) | dev_select (referencia) |
+|---|---|---|
+| EM | 62.56 | 61.53 (época 2, τ = −2) |
+| F1 | 66.27 | 65.10 (época 2, τ = −2) |
+| HasAns F1 | 74.20 | 79.17 (época 2, τ = −2) |
+| NoAns acc | 57.83 | 51.95 (época 2, τ = −2) |
+| Proxy de la guía, reponderado | **0.694** | 0.721 |
+| Proxy, sólo exactas, reponderado | 0.647 | 0.675 |
+
+**Lectura.**
+- El resultado limpio queda **justo por debajo de 0.70**: 0.694 con el proxy, que equivale a unos 59 puntos según la fórmula de la guía. Con sólo exactas, unos 53.
+- La caída frente a `dev_select` (0.721 a 0.694) es esperable: el umbral y la época se eligieron mirando `dev_select`, así que ese número estaba un poco inflado. El margen de error de 50 preguntas es de ±0.05, así que la diferencia no es concluyente por sí sola.
+- Ya no se vuelve a elegir modelo ni τ para este conjunto. Cualquier cambio a partir de aquí deja de ser un número limpio.
+
 ## Corrida 8: full_ft_4ep (fine-tuning completo, reanudado hasta 4 épocas)
 
 **Pregunta.** ¿Dos épocas más mejoran el proxy de la guía sobre `dev_select` respecto a la época 2 (0.716)? ¿Dónde está el máximo?
