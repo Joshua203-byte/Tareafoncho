@@ -1,0 +1,14 @@
+commit_codigo: 6dc3226
+fecha: 2026-11-02T04:07:50Z
+modelo: models/full_ft_4ep/epoch_3 (fine-tuning completo, época 3)  tokenizer: models/full_ft_4ep/merged
+tau: -2.0 (por defecto)
+versiones: torch 2.11.0+cu128 transformers 5.22.1 fastapi 0.162.0 pydantic 2.14.2
+equipo: Intel Core i7-12650H (10 núcleos, 16 hilos), 16 GB RAM; inferencia en CPU
+comando: python scripts/smoke_test.py --base-url http://127.0.0.1:8013 --n 50   (localhost, sin túnel)
+
+/health -> 200 {"status":"ok"}
+/info   -> 200 {"team":"Fonchos","model":"distilbert-base-uncased","params":66364418,"max_seq_length":384,"doc_stride":128}
+/info sin token -> 401 (debe ser 401)
+
+50 peticiones en 5.9 s (tope 150 s), la más lenta 400 ms, fallas 0
+RESULTADO: OK

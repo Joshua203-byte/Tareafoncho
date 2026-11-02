@@ -1,0 +1,15 @@
+commit_codigo: 6dc3226
+fecha: 2026-11-02T04:07:50Z
+modelo: models/full_ft_4ep/epoch_3 (fine-tuning completo, época 3)  tokenizer: models/full_ft_4ep/merged
+tau: -2.0 (por defecto)
+versiones: torch 2.11.0+cu128 transformers 5.22.1 fastapi 0.162.0 pydantic 2.14.2
+equipo: Intel Core i7-12650H (10 núcleos, 16 hilos), 16 GB RAM; inferencia en CPU
+comando: python scripts/bench_predict.py --repeats 5
+
+modelo: C:/Users/diego/Documents/GitHub/Tareafoncho/models/full_ft_4ep/epoch_3 | params=66,364,418 | size=265 MB | load=1.4 s
+sample-01 ctx=542ch media=41 ms p95=45 ms max=45 ms | answer='1024 and 16' start=374 score=0.9997
+sample-02 ctx=446ch media=38 ms p95=41 ms max=41 ms | answer='3.5 days' start=437 score=0.9991
+sample-03 ctx=431ch media=37 ms p95=41 ms max=41 ms | answer=None start=None score=0.9169
+sample-04 ctx=464ch media=40 ms p95=43 ms max=43 ms | answer='3' start=310 score=0.9769
+sample-05 ctx=3171ch media=330 ms p95=336 ms max=336 ms | answer='50,257' start=3157 score=0.9986
+global: media=97 ms p95=335 ms max=336 ms (n=25)
