@@ -7,8 +7,8 @@
 | Team id | `Fonchos` |
 | Members | Diego Emiliano Romero Castillo, Joshua Gabriel Garcilazo Avendaño, Monica Daniela Alvarenga Mejia, Carlos Eduardo Moreno Diaz, Violeta Natalia Jacobo Bonilla |
 | Repository URL | https://github.com/Joshua203-byte/Tareafoncho |
-| `submission` commit hash | The commit tagged `submission`. This report is inside that commit, so its hash cannot be written here: `git rev-parse submission`. |
-| Public service URL used at the dry run | Sent to the instructor before the slot (ngrok fixed domain); not written in the repository. |
+| `submission` commit hash | The commit tagged `submission`, which contains this report (`git rev-parse submission`). |
+| Public service URL used at the dry run | Shared with the instructor by message before the dry run (free ngrok fixed domain). |
 | AI tools used (which, and for what) | Claude Code (Claude Haiku 5.5 and Sonnet 5.5): training code, API, tests, measurement scripts, plots and this report. Every number comes from our own runs, cited by file. |
 
 ## 1. Model choice and justification
@@ -16,7 +16,7 @@
 - **Base checkpoint:** `distilbert-base-uncased` ([Sanh et al., 2019](https://arxiv.org/abs/1910.01108); 66.4 M parameters, 6 layers, hidden size 768), with no SQuAD fine-tuning (we checked the Hub).
 - **Alternatives considered:** `bert-base-uncased` (108.9 M parameters, 235 ms per question on CPU), `roberta-base` (124.1 M, 229 ms), `deberta-v3-base` (183.8 M, 387 ms), `ModernBERT-base` (149.6 M, 317 ms), against 110 ms for DistilBERT (`logs/model_benchmark.json`). With a 5 s timeout and a 150 s cap for 50 items, a 12-layer encoder leaves little margin for a modest quality gain.
 - **Trade-off:** a lower quality ceiling for about 40 ms per short question on CPU and a 265 MB model.
-- **Adaptation:** full fine-tuning (all 66,364,418 parameters); LoRA (rank 16) was our control and scored 0.697 on the guide-scale score (Section 2) against 0.721.
+- **Adaptation:** full fine-tuning (all 66,364,418 parameters); LoRA (rank 16) was our control and scored 0.697 on the guide-scale score (defined in Section 2) against 0.721 for full fine-tuning.
 
 ## 2. Training
 
@@ -41,14 +41,14 @@
 | `dev_select`, epoch 3 (used to choose epoch and τ) | 64.41 | 68.02 | 77.91 | 58.78 | 0.721 |
 | `dev_report`, evaluated once (clean) | 62.56 | 66.27 | 74.20 | 57.83 | 0.694 |
 
-**Guide-scale score** is our proxy for the instructor's live grading (guide §XIV.1): 1 for an exact match or a correct `null`, 0.5 for partial overlap (any non-exact answer with token F1 > 0, as we cannot run the LLM judge), 0 otherwise, reweighted to 25 % unanswerable. Always answering `null` gives the 0.25 baseline; the reference is 0.70. It is an estimate.
+**Guide-scale score** is our proxy for the instructor's live grading (guide §XIV.1): 1 for an exact match or a correct `null`, 0.5 for partial overlap (any non-exact answer with token F1 > 0, as we cannot run the LLM judge), 0 otherwise, reweighted to 25 % unanswerable. Always answering `null` gives the 0.25 baseline; the reference is 0.70. It is an estimate, not the final grade.
 
 Epoch 4 has higher EM and F1 but a lower guide-scale score (0.709), so we serve epoch 3 (`logs/dev_select.png`).
 
 ## 3. No-answer threshold
 
 - **Decision rule:** the null score is `start[CLS] + end[CLS]` (minimum over windows); the span score is the best valid start/end pair over all windows. We answer with the span if `best span − null > τ`, otherwise `null` ([BERT](https://arxiv.org/abs/1810.04805) §4.3).
-- **Choosing τ:** we swept τ on `dev_select`, reweighted to 25 % unanswerable (the hidden-set share; `dev_select` has 48 %). The best is **τ = −2**, on a plateau between −4 and −0.5, and the service default (`QA_TAU`).
+- **Choosing τ:** we swept τ on `dev_select`, reweighted to 25 % unanswerable (the hidden-set share; `dev_select` has 48 %). The best is **τ = −2**, on a plateau between −4 and −0.5, and it is the service default (`QA_TAU`).
 
 ![Threshold sweep](logs/tau_sweep.png)
 
@@ -67,8 +67,7 @@ Epoch 4 has higher EM and F1 but a lower guide-scale score (0.709), so we serve 
 pip install -r requirements.txt
 # weights are not in git: unzip the GitHub release `weights-v1` in the repo root, then put the token in .env
 export QA_API_TOKEN=...                      # PowerShell: $env:QA_API_TOKEN="..."
-export QA_MODEL_DIR=models/full_ft_4ep/epoch_3
-export QA_TOKENIZER_DIR=models/full_ft_4ep/merged
+export QA_MODEL_DIR=models/full_ft_4ep/epoch_3      # default; tokenizer files are in the same folder
 uvicorn service.app:app --host 127.0.0.1 --port 8000 --workers 1   # or .\scripts\run.ps1
 ngrok http 8000                              # or .\scripts\tunnel.ps1
 ```
@@ -83,7 +82,7 @@ ngrok http 8000                              # or .\scripts\tunnel.ps1
 | sample-04 | `null` | `3` | 310 | no |
 | sample-05 | `50,257` | `50,257` | 3157 | yes |
 
-Both errors are the model's, not the service's: the same model run outside the service, one window at a time without padding, gives identical answers on these five items and on 1,000 `dev_select` questions (`logs/service/eval_service_sample.txt`). In sample-01 it starts the span at "1024" (start logit 7.16) instead of "16" (6.01), a margin no reasonable τ changes. sample-04 is a near miss (the context gives "3 times" for GPT-3, the question asks about BERT-base) and tuning τ for one item would overfit.
+Both errors are the model's, not the service's: the same model run outside the service, one window at a time without padding, gives identical answers on these five items and on 1,000 `dev_select` questions (`logs/service/eval_service_sample.txt`). In sample-01 it starts the span at "1024" (start logit 7.16) instead of "16" (6.01), a margin of 6.2 over the null score that no reasonable τ changes. sample-04 is a near miss (the context gives "3 times" for GPT-3, the question asks about BERT-base) and tuning τ for one item would overfit.
 
 ## 6. Model size and latency (not graded)
 
@@ -104,9 +103,9 @@ Both errors are the model's, not the service's: the same model run outside the s
 
 ## 8. Decoder investigation
 
-A decoder-only model (GPT-1: 117 M parameters, 512-token context; [Radford et al., 2018](https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf)) or an encoder–decoder (e.g. T5, [Raffel et al., 2020](https://arxiv.org/abs/1910.10683)) generates the answer as text instead of picking a span. We tie it to three problems measured on our model; costs are orders of magnitude, not measurements.
+A decoder-only model (GPT-1: 117 M parameters, 512-token context; [Radford et al., 2018](https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf)) or an encoder–decoder (e.g. T5, [Raffel et al., 2020](https://arxiv.org/abs/1910.10683)) generates the answer as text instead of picking a span. We relate it to three problems measured on our model; the costs are orders of magnitude, not measurements.
 
-**1. Near-miss unanswerable questions (sample-04; 57.8 % accuracy on unanswerable questions in `dev_report`, our weakest result).** SQuAD 2.0 unanswerable questions are written to resemble answerable ones ([Rajpurkar et al., 2018](https://arxiv.org/abs/1806.03822)). We compare two scalar scores at `[CLS]`; a generative model reads the whole question and could output "unanswerable". *Cost:* 1.8× (GPT-1) to 3.3× (T5-base, 220 M) the parameters; larger models do not fully fine-tune in 6 GB of VRAM, so LoRA, which lost 2.4 points in our control; and we lose τ (worth 9 points) and must rebuild it from sequence probabilities.
+**1. Near-miss unanswerable questions (sample-04; 57.8 % accuracy on unanswerable questions in `dev_report`, our weakest result).** SQuAD 2.0 unanswerable questions are written to resemble answerable ones ([Rajpurkar et al., 2018](https://arxiv.org/abs/1806.03822)). We compare two scalar scores at `[CLS]`; a generative model reads the whole question and could output "unanswerable". *Cost:* 1.8× (GPT-1) to 3.3× (T5-base, 220 M) the parameters; larger models cannot be fully fine-tuned in 6 GB of VRAM, so LoRA would be needed, and it lost 2.4 points in our control; and we would lose τ (worth 9 points) and have to rebuild it from sequence probabilities.
 
 **2. A wrong span boundary (sample-01, "1024 and 16").** Start and end come from independent logits, so an incoherent pair can win; a decoder conditions each token on the previous ones. *Cost:* the contract needs `context[start:start+len] == answer`, but generation can paraphrase ("16 heads"), so we need constrained decoding or a fallback to `null`, and `start` needs a text search that is ambiguous for repeated strings.
 
@@ -117,7 +116,7 @@ References: [Radford et al. (2018)](https://cdn.openai.com/research-covers/langu
 ## 9. Known limitations
 
 - **Wrong answers:** sample-01 and sample-04 (Section 5), both model errors; a 50-question score varies by about ±0.06 by chance.
-- **Distribution shift:** τ and all scores come from SQuAD-style text; the hidden set uses other texts.
-- **Score:** not a calibrated probability.
+- **Distribution shift:** τ and all scores come from SQuAD-style text; the hidden set uses other texts, so its share of `null` answers and its score may differ.
+- **Score:** the `score` field is not a calibrated probability, and it changes if τ changes.
 - **Concurrency, input, auth:** one worker and one lock, so simultaneous requests queue; English only; one shared token, no rotation or rate limit.
 - **Availability:** the service needs this laptop on, plugged in and online with the tunnel running; the backup tunnel was tested from the same laptop only.
