@@ -67,7 +67,7 @@ for name, ctx, qq in [("contexto de 1 car.", "a", "What?"), ("contexto solo espa
                       ("pregunta de 1 car.", sample[0]["context"], "?"), ("contexto con solo puntuación", "!!! ??? ...", "Who?"), ("pregunta vacía de sentido", sample[0]["context"], "     ")]:
     res.append(check(name, {"id": "d", "context": ctx, "question": qq}))
 res.append(check("id de 64 car.", {"id": "x" * 64, "context": sample[0]["context"], "question": q}))
-res.append(check("id con comillas y barra", {"id": 'a"b\c/d', "context": sample[0]["context"], "question": q}))
+res.append(check("id con comillas y barra", {"id": 'a"b\\c/d', "context": sample[0]["context"], "question": q}))
 # 6. Todos los ítems del set público
 for it in sample: res.append(check("público " + it["id"], {k: it[k] for k in ("id", "context", "question")}))
 # 7. Paralelo (el harness manda uno por uno, pero por si acaso)
