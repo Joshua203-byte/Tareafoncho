@@ -59,6 +59,11 @@ def test_sample_set_has_at_least_four_of_five_right(predictor):
 
     La Fase 4 pedía ≥ 4/5. Con el modelo final (fine-tuning completo, época 3, τ = -2)
     salen 3/5: falla sample-01 ("1024 and 16") y sample-04 (responde "3" en vez de null).
+    Diagnóstico (test_service_matches_unpadded_reference): ambos fallos son del
+    modelo, no del servicio; el camino de evaluación sin relleno da lo mismo. En
+    sample-01 el modelo prefiere empezar en "1024" (logit 7.16) que en "16" (6.01),
+    con margen 6.2 sobre el null: ningún τ razonable lo cambia. En sample-04 el margen
+    es 1.74: respondería null solo con τ > 1.74, y mover τ por un ítem sería sobreajustar.
     Cinco ítems no deciden entre modelos; la elección se hizo con dev_select. Esta
     prueba solo detecta que el servicio esté roto (por ejemplo, tokenizer equivocado).
     """
@@ -71,3 +76,39 @@ def test_sample_set_has_at_least_four_of_five_right(predictor):
         else:
             correct += pred["answer"] in {a["text"] for a in it["answers"]}
     assert correct >= min(3, len(items))
+
+
+@requires_model
+def test_service_matches_unpadded_reference(predictor):
+    """El servicio da lo mismo que el camino de evaluación: una ventana a la vez, sin relleno.
+
+    Es la prueba que separa "falla del modelo" de "falla del servicio" (relleno,
+    offsets, umbral). sample-05 tiene 3 ventanas, así que ejercita el relleno.
+    """
+    import torch
+
+    from service.config import DOC_STRIDE, MAX_SEQ_LENGTH
+    from src.features import ValidationFeatures
+    from src.postprocess import predict_example
+
+    features = ValidationFeatures(predictor.tokenizer, max_length=MAX_SEQ_LENGTH, stride=DOC_STRIDE)
+    for it in json.loads(SAMPLE.read_text(encoding="utf-8"))["items"]:
+        feats = features({"id": [it["id"]], "question": [it["question"]], "context": [it["context"]]})
+        windows = []
+        for i in range(len(feats["input_ids"])):
+            with torch.inference_mode():  # una ventana sola: no hace falta rellenar
+                out = predictor.model(
+                    input_ids=torch.tensor([feats["input_ids"][i]]),
+                    attention_mask=torch.tensor([feats["attention_mask"][i]]),
+                )
+            windows.append(
+                {
+                    "start_logits": out.start_logits[0].numpy(),
+                    "end_logits": out.end_logits[0].numpy(),
+                    "offsets": feats["offset_mapping"][i],
+                }
+            )
+        ref = predict_example(windows, it["context"], tau=predictor.tau)
+        served = predictor.predict(it["id"], it["context"], it["question"])
+        assert served["answer"] == (ref["text"] or None), it["id"]
+        assert served["start"] == ref["start"], it["id"]
