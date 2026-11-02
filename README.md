@@ -9,7 +9,7 @@ con token, expuesta por un túnel público. El reporte está en [REPORT.md](REPO
 |---|---|
 | `src/` | Entrenamiento: datos, ventanas, modelo, métricas, post-procesamiento |
 | `service/` | La API: `config.py` (entorno), `qa.py` (predictor), `app.py` (endpoints) |
-| `scripts/` | Arranque: `run.ps1` (servicio) y `tunnel.ps1` (túnel). Medición: `smoke_test.py`, `robustness_check.py`, `bench_predict.py`, `eval_service_sample.py` |
+| `scripts/` | Arranque: `run.ps1` (servicio) y `tunnel.ps1` (túnel). Medición: `smoke_test.py`, `robustness_check.py`, `bench_predict.py`, `eval_service_sample.py`. Gráficas del reporte: `plot_training.py` |
 | `tests/` | Pruebas con `pytest` |
 | `logs/` | Registros de entrenamiento, de la evaluación final y del servicio |
 | `docs/` | Explicación de cada fase |
@@ -20,9 +20,11 @@ con token, expuesta por un túnel público. El reporte está en [REPORT.md](REPO
    ```bash
    pip install -r requirements.txt
    ```
-2. Consigue la carpeta del modelo. **Los pesos no están en git**: copia
-   `models/full_ft_4ep/epoch_3` (pesos) y `models/full_ft_4ep/merged` (tokenizer) de la
-   carpeta compartida del equipo.
+2. Consigue el modelo. **Los pesos no están en git**: bájalos del
+   [release `weights-v1`](https://github.com/Joshua203-byte/Tareafoncho/releases/tag/weights-v1)
+   (`fonchos-qa-weights-v1.zip`, 245 MB) y descomprímelos **en la raíz del repo**
+   (`Expand-Archive fonchos-qa-weights-v1.zip -DestinationPath .`). Deja pesos y tokenizer en
+   `models/full_ft_4ep/epoch_3`, la ruta por defecto: no hace falta `QA_TOKENIZER_DIR`.
 3. Copia `.env.example` a `.env` y pon tu token en `QA_API_TOKEN`. `.env` está en
    `.gitignore`: el token nunca se versiona.
 4. Arranca (PowerShell):
@@ -78,6 +80,9 @@ python scripts/smoke_test.py --base-url https://<url-publica> --n 50  # imita al
 python scripts/robustness_check.py https://<url-publica>             # 42 casos raros: unicode, tamaños, cabeceras
 python scripts/bench_predict.py --repeats 5                           # latencia del predictor en CPU
 python scripts/eval_service_sample.py --n 1000                        # servicio vs. evaluación (dev_select)
+python scripts/plot_training.py                                       # regenera logs/loss.png, dev_select.png y tau_sweep.png
 ```
+
+Las gráficas salen de los registros que ya están en `logs/runs/` (no se entrena nada para generarlas).
 
 Sin los pesos, las pruebas que usan el modelo real se saltan solas con el motivo visible.
